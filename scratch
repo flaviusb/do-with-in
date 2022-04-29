@@ -1,0 +1,46 @@
+The environment
+
+- configuration
+  * are handlers allowed
+  * what is the variable sigil
+  * what is the code sigil
+  * what handlers are there
+  * what are the 'do', 'with', and 'in' identifiers, and are 'with' and 'in' allowed
+  * What is the default 'with' and 'in' tokenstream?
+- variables in two namespaces
+  * set by $ ways eg in 'with', inside a function defined in 'with' via its arg list
+  * set by % ways eg by a handler
+
+Handlers
+
+%(...) sends ... plus the environment to a handler, picked based on the first token in ...
+Handlers get registered. A set of defaults provides for, if/else, etc
+
+
+
+#[proc_macro_attribute]
+fn make_do(args: TokenStream, body: TokenStream) -> TokenStream {
+
+}
+
+
+#[proc_macro]
+fn do_with_in(t: TokenStream) -> TokenStream {
+  let mut handlers: HashMap<String, 
+}
+
+Collapse into single namespace? with/in become just handlers too? Handlers return (TokenStream, Variables) and so can do things like add in new variables? Handlers are taken care of in the same place/way as variables?
+
+What about difference between ⌜$foo(bar, Baz, [quux, n, m])⌝ vs ⌜in { }⌝ vs ⌜$(for $i in ... { })⌝ vs ⌜$(if $i is empty { } else { })⌝?
+
+What if I make it all $(foo bar baz quux)
+
+No, lets just have
+
+$a for simple substitutions, and $(a ...) for a(...)=...
+
+fn each_with_variable_maker(args: ArgList, body: Body) -> Handler {
+  |c: Configuration, v: Variables, t: TokenStream| {
+    (v, t)
+  }
+}
