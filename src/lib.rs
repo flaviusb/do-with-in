@@ -42,26 +42,29 @@ struct Configuration<Start: StartMarker> {
 }
 
 trait StartMarker {
-  fn name() -> String;
+  fn name() -> Option<String>;
   //fn type() -> Self::token;
   type token: Parse;// = syn::token::Do;
+  type tokend: Parse + ToString + Clone;
 }
 
 impl StartMarker for DoMarker {
-  fn name() -> String {
-    String::from("do")
+  fn name() -> Option<String> {
+    Some(String::from("do"))
   }
   //fn type() -> Self::token {
   //  return (Token![do])
   //}
   type token = syn::token::Do;
+  type tokend = proc_macro2::Literal;
 }
 
 struct DoMarker;
 
 impl<T: StartMarker> Default for Configuration<T> {
   fn default() -> Self {
-    Configuration { allow_prelude: true, ..Default::default() }
+    //dbg!("Configuration<T>::default()");
+    Configuration { allow_prelude: true, sigil: Sigil::default(), rest: None, _do: PhantomData }
   }
 }
 
@@ -87,15 +90,28 @@ impl Parse for Fatuous {
 
 impl<T: StartMarker> Parse for Configuration<T> {
   fn parse(input: ParseStream) -> Result<Self> {
+    //dbg!("Start of parsing configuration.");
     let mut base_config: Configuration<T> = Default::default();
+    //dbg!("Made base config.");
     while !input.is_empty() {
-      if let it = input.parse::<T::token>() {
-        break;
+      //dbg!("Start of while.");
+      let mut next: Option<&str> = None;
+      let mut foo: String = String::from("");
+      if let Some(name) = T::name() {
+        if let Ok(it) = input.parse::<T::tokend>() {
+          if it.to_string().as_str() == name {
+            break;
+          }
+          foo = it.to_string().clone();
+          next = Some(foo.as_str().clone());
+      } else if let Ok(it) = input.parse::<T::token>() {
+          break;
+        }
       }
-      match input.parse::<Ident>()?.to_string().as_str() {
-        "sigil" => println!("sigil found"),
-        a => println!("found: {}", a),
-      }
+      match next.unwrap_or(input.parse::<Ident>()?.to_string().as_str()) {
+        "sigil" => {dbg!("sigil found");},
+        a => {dbg!("found: ", a);},
+      };
     }
     let mut fat = TokenStream2::new();
     input.step(|cursor| {
@@ -109,12 +125,13 @@ impl<T: StartMarker> Parse for Configuration<T> {
 
     base_config.rest = Some(fat.into());
     //while(input.parse
+    //dbg!("End of parsing configuration.");
     Ok(base_config)
   }
 }
 
 impl<T: StartMarker> Configuration<T> {
-  fn name(&self) -> String {
+  fn name(&self) -> Option<String> {
     T::name()
   }
 }
@@ -152,7 +169,9 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
   match configuration.rest {
     Some(out) => out,
     None      => TokenStream2::new().into(),
-  }
+  };
+  // For now to make testing possible
+  quote! { println!("Todo") }.into()
 }
 
 /*
@@ -187,4 +206,5 @@ mod tests {
         let result = 2 + 2;
         assert_eq!(result, 4);
     }
+
 }
