@@ -14,6 +14,7 @@ use syn::spanned::Spanned;
 use syn::{Expr, Ident, Type, Visibility};
 use syn::punctuated::Punctuated;
 use syn::parenthesized;
+use syn::token::Token;
 
 use std::marker::PhantomData;
 
@@ -32,21 +33,28 @@ impl Default for Sigil {
   }
 }
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq)]
+#[derive(Debug,Clone)]
 struct Configuration<Start: StartMarker> {
   allow_prelude: bool,
   sigil: Sigil,
+  rest: Option<TokenStream>,
   _do: PhantomData<Start>,
 }
 
 trait StartMarker {
   fn name() -> String;
+  //fn type() -> Self::token;
+  type token: Parse;// = syn::token::Do;
 }
 
 impl StartMarker for DoMarker {
   fn name() -> String {
     String::from("do")
   }
+  //fn type() -> Self::token {
+  //  return (Token![do])
+  //}
+  type token = syn::token::Do;
 }
 
 struct DoMarker;
@@ -57,9 +65,49 @@ impl<T: StartMarker> Default for Configuration<T> {
   }
 }
 
+struct Fatuous {
+  fat: TokenStream,
+}
+
+impl Parse for Fatuous {
+  fn parse(input: ParseStream) -> Result<Self> {
+    let mut fat = TokenStream2::new();
+    input.step(|cursor| {
+      let mut rest = *cursor;
+      while let Some((tt, next)) = rest.token_tree() {
+        fat.extend(TokenStream2::from(tt).into_iter());
+        rest = next;
+      }
+      Ok(((), rest))
+    });
+    Ok(Fatuous { fat: fat.into() })
+  }
+}
+
+
 impl<T: StartMarker> Parse for Configuration<T> {
   fn parse(input: ParseStream) -> Result<Self> {
     let mut base_config: Configuration<T> = Default::default();
+    while !input.is_empty() {
+      if let it = input.parse::<T::token>() {
+        break;
+      }
+      match input.parse::<Ident>()?.to_string().as_str() {
+        "sigil" => println!("sigil found"),
+        a => println!("found: {}", a),
+      }
+    }
+    let mut fat = TokenStream2::new();
+    input.step(|cursor| {
+      let mut rest = *cursor;
+      while let Some((tt, next)) = rest.token_tree() {
+        fat.extend(TokenStream2::from(tt).into_iter());
+        rest = next;
+      }
+      Ok(((), rest))
+    });
+
+    base_config.rest = Some(fat.into());
     //while(input.parse
     Ok(base_config)
   }
@@ -93,15 +141,18 @@ fn defaultHandlers() -> Handlers<DoMarker> {
 #[proc_macro]
 pub fn do_with_in(t: TokenStream) -> TokenStream {
   // Check for configuration first
-  let mut configuration: Configuration<DoMarker> = Default::default();
-  let start = configuration.name();
+  let mut configuration = syn::parse::<Configuration<DoMarker>>(t).unwrap();
+  
   //while(t.peek().toString() != "do") {
     //match t.next().toString() {
     //  ... => 
     //}
   //}
   //do_with_in_explicit(t, configuration)
-  t
+  match configuration.rest {
+    Some(out) => out,
+    None      => TokenStream2::new().into(),
+  }
 }
 
 /*
