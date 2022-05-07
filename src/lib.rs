@@ -9,16 +9,18 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use quote::ToTokens;
 use syn::{parse, Attribute, PathSegment, Result, Token};
-use syn::parse::{Parse, ParseStream, Parser};
+use syn::parse::{Parse, ParseStream, Parser, Peek};
 use syn::spanned::Spanned;
 use syn::{Expr, Ident, Type, Visibility};
 use syn::punctuated::Punctuated;
 use syn::parenthesized;
 use syn::token::Token;
+use syn::buffer::Cursor;
 
 use std::marker::PhantomData;
 
 use std::collections::HashMap;
+use std::fmt::format;
 
 #[derive(Debug,Copy,Clone,PartialEq,Eq)]
 enum Sigil {
@@ -41,24 +43,31 @@ struct Configuration<Start: StartMarker> {
   _do: PhantomData<Start>,
 }
 
+type PeekFn = fn(Cursor) -> bool;
+
 trait StartMarker {
   fn name() -> Option<String>;
   //fn type() -> Self::token;
   type token: Parse;// = syn::token::Do;
+  fn tokenp() -> PeekFn;// = syn::token::Do;
   type tokend: Parse + ToString + Clone;
 }
 
 impl StartMarker for DoMarker {
   fn name() -> Option<String> {
-    Some(String::from("do"))
+    None //Some(String::from("do"))
   }
   //fn type() -> Self::token {
   //  return (Token![do])
   //}
   type token = syn::token::Do;
-  type tokend = proc_macro2::Literal;
+  fn tokenp() -> PeekFn {
+    syn::token::Do::peek
+  }
+  type tokend = syn::Ident;
 }
 
+#[derive(Debug,Clone)]
 struct DoMarker;
 
 impl<T: StartMarker> Default for Configuration<T> {
@@ -104,13 +113,32 @@ impl<T: StartMarker> Parse for Configuration<T> {
           }
           foo = it.to_string().clone();
           next = Some(foo.as_str().clone());
-      } else if let Ok(it) = input.parse::<T::token>() {
-          break;
         }
+      } else if T::tokenp()(input.cursor()) {
+          dbg!("iwhflwhedflowhedfl");
+          if let Ok(it) = input.parse::<T::token>() {
+            break;
+          }
       }
-      match next.unwrap_or(input.parse::<Ident>()?.to_string().as_str()) {
-        "sigil" => {dbg!("sigil found");},
-        a => {dbg!("found: ", a);},
+      let mut st: String = String::from("");
+      let err_pos = input.fork();
+      let new_next = if let Some(it) = next { it } else if !input.is_empty() { st = input.parse::<Ident>().expect("blergh").to_string(); &st } else { break; };
+      match new_next {
+        "sigil" => {
+          dbg!("sigil found");
+          input.parse::<Token![:]>()?;
+          if input.peek(Token![$]) {
+            input.parse::<Token![$]>()?;
+            base_config.sigil = Sigil::Dollar;
+          } else if input.peek(Token![%]) {
+            input.parse::<Token![%]>()?;
+            base_config.sigil = Sigil::Percent;
+          } else if input.peek(Token![#]) {
+            input.parse::<Token![#]>()?;
+            base_config.sigil = Sigil::Hash;
+          }
+        },
+        a => {return Err(err_pos.error(format!("Bad configuration; found {} at", a)));},
       };
     }
     let mut fat = TokenStream2::new();
@@ -158,20 +186,25 @@ fn defaultHandlers() -> Handlers<DoMarker> {
 #[proc_macro]
 pub fn do_with_in(t: TokenStream) -> TokenStream {
   // Check for configuration first
-  let mut configuration = syn::parse::<Configuration<DoMarker>>(t).unwrap();
-  
-  //while(t.peek().toString() != "do") {
-    //match t.next().toString() {
-    //  ... => 
-    //}
-  //}
-  //do_with_in_explicit(t, configuration)
-  match configuration.rest {
-    Some(out) => out,
-    None      => TokenStream2::new().into(),
-  };
-  // For now to make testing possible
-  quote! { println!("Todo") }.into()
+  match syn::parse::<Configuration<DoMarker>>(t) {
+    Ok(it) => {
+      let mut configuration = it.clone();
+      
+      //while(t.peek().toString() != "do") {
+        //match t.next().toString() {
+        //  ... => 
+        //}
+      //}
+      //do_with_in_explicit(t, configuration)
+      match configuration.rest {
+        Some(out) => out,
+        None      => TokenStream2::new().into(),
+      };
+      // For now to make testing possible
+      quote! { println!("Todo") }.into()
+    },
+    Err(it) => /*quote! { compiler_error!(#it); }).into()*/ it.to_compile_error().into(),
+  }
 }
 
 /*
@@ -199,12 +232,4 @@ fn do_with_in_izer(args: TokenStream, body: TokenStream) -> TokenStream {
 }
 
 */
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 
-}
