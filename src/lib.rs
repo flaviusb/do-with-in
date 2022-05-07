@@ -115,7 +115,7 @@ impl<T: StartMarker> Parse for Configuration<T> {
           next = Some(foo.as_str().clone());
         }
       } else if T::tokenp()(input.cursor()) {
-          dbg!("iwhflwhedflowhedfl");
+          //dbg!("iwhflwhedflowhedfl");
           if let Ok(it) = input.parse::<T::token>() {
             break;
           }
@@ -125,7 +125,7 @@ impl<T: StartMarker> Parse for Configuration<T> {
       let new_next = if let Some(it) = next { it } else if !input.is_empty() { st = input.parse::<Ident>().expect("blergh").to_string(); &st } else { break; };
       match new_next {
         "sigil" => {
-          dbg!("sigil found");
+          //dbg!("sigil found");
           input.parse::<Token![:]>()?;
           if input.peek(Token![$]) {
             input.parse::<Token![$]>()?;
@@ -138,7 +138,7 @@ impl<T: StartMarker> Parse for Configuration<T> {
             base_config.sigil = Sigil::Hash;
           }
         },
-        a => {return Err(err_pos.error(format!("Bad configuration; found {} at", a)));},
+        a => {return Err(err_pos.error(format!("Bad configuration section; found {} when sigil or end of prelude expected", a)));},
       };
     }
     let mut fat = TokenStream2::new();
