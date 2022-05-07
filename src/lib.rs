@@ -190,12 +190,6 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
     Ok(it) => {
       let mut configuration = it.clone();
       
-      //while(t.peek().toString() != "do") {
-        //match t.next().toString() {
-        //  ... => 
-        //}
-      //}
-      //do_with_in_explicit(t, configuration)
       match configuration.clone().rest {
         Some(out) => out,
         None      => TokenStream2::new().into(),
@@ -203,7 +197,7 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
       // For now to make testing possible
       do_with_in_explicit(quote! { println!("Todo") }.into(), configuration)
     },
-    Err(it) => /*quote! { compiler_error!(#it); }).into()*/ do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default()),
+    Err(it) =>  do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default()),
   }
 }
 
