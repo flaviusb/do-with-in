@@ -196,22 +196,23 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
         //}
       //}
       //do_with_in_explicit(t, configuration)
-      match configuration.rest {
+      match configuration.clone().rest {
         Some(out) => out,
         None      => TokenStream2::new().into(),
       };
       // For now to make testing possible
-      quote! { println!("Todo") }.into()
+      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration)
     },
-    Err(it) => /*quote! { compiler_error!(#it); }).into()*/ it.to_compile_error().into(),
+    Err(it) => /*quote! { compiler_error!(#it); }).into()*/ do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default()),
   }
 }
 
-/*
-fn do_with_in_explicit(t: TokenStream, c: Configuration) -> TokenStream {
-  ...
+
+fn do_with_in_explicit<T: StartMarker>(t: TokenStream, c: Configuration<T>) -> TokenStream {
+  t
 }
 
+/*
 fn with_maker(args: ArgList, body: Body) -> Handler {
   |c: Configuration, v: Variables, t: TokenStream| {
     // First match on the args
