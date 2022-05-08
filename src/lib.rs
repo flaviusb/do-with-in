@@ -164,20 +164,24 @@ impl<T: StartMarker> Configuration<T> {
   }
 }
 
-#[derive(Debug,Copy,Clone,PartialEq,Eq)]
-struct Variables {}
+#[derive(Clone)]
+struct Variables<'a, T: StartMarker> {
+  handlers:    Handlers<'a, T>,
+  with_interp: HashMap<String, TokenStream>,
+  no_interp:   HashMap<String, TokenStream>,
+}
 
-type Handler<T: StartMarker> = dyn Fn(Configuration<T>, Variables, TokenStream) -> (Variables, TokenStream);
-type Handlers<T: StartMarker> = HashMap<String, Box<Handler<T>>>;
+type Handler<T: StartMarker> = dyn Fn(Configuration<T>, Variables<T>, TokenStream) -> (Variables<T>, TokenStream);
+type Handlers<'a, T: StartMarker> = HashMap<String, Box<&'a Handler<T>>>;
 
 
-fn ifHandler<T: StartMarker>(c: Configuration<T>, v: Variables, t: TokenStream) -> (Variables, TokenStream) {
+fn ifHandler<T: StartMarker>(c: Configuration<T>, v: Variables<T>, t: TokenStream) -> (Variables<T>, TokenStream) {
   (v, t)
 }
 
-fn defaultHandlers() -> Handlers<DoMarker> {
-  let mut m: HashMap<String, Box<Handler<DoMarker>>> = HashMap::new();
-  m.insert(String::from("if"), Box::new(ifHandler));
+fn defaultHandlers() -> Handlers<'static, DoMarker> {
+  let mut m: HashMap<String, Box<&Handler<DoMarker>>> = HashMap::new();
+  m.insert(String::from("if"), Box::new(&ifHandler));
   m
 }
 
