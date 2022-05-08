@@ -197,7 +197,7 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
       // For now to make testing possible
       do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, defaultHandlers())
     },
-    Err(it) =>  do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
+    Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
   }
 }
 
