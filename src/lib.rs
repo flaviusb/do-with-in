@@ -195,14 +195,14 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
         None      => TokenStream2::new().into(),
       };
       // For now to make testing possible
-      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration)
+      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, defaultHandlers())
     },
-    Err(it) =>  do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default()),
+    Err(it) =>  do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
   }
 }
 
 
-fn do_with_in_explicit<T: StartMarker>(t: TokenStream, c: Configuration<T>) -> TokenStream {
+fn do_with_in_explicit<T: StartMarker>(t: TokenStream, c: Configuration<T>, h: Handlers<T>) -> TokenStream {
   t
 }
 
