@@ -36,7 +36,7 @@ impl Default for Sigil {
 }
 
 #[derive(Debug,Clone)]
-struct Configuration<Start: StartMarker> {
+struct Configuration<Start: StartMarker> where Start: Clone {
   allow_prelude: bool,
   sigil: Sigil,
   rest: Option<TokenStream>,
@@ -70,7 +70,7 @@ impl StartMarker for DoMarker {
 #[derive(Debug,Clone)]
 struct DoMarker;
 
-impl<T: StartMarker> Default for Configuration<T> {
+impl<T: StartMarker + Clone> Default for Configuration<T> {
   fn default() -> Self {
     //dbg!("Configuration<T>::default()");
     Configuration { allow_prelude: true, sigil: Sigil::default(), rest: None, _do: PhantomData }
@@ -97,7 +97,7 @@ impl Parse for Fatuous {
 }
 
 
-impl<T: StartMarker> Parse for Configuration<T> {
+impl<T: StartMarker + Clone> Parse for Configuration<T> {
   fn parse(input: ParseStream) -> Result<Self> {
     //dbg!("Start of parsing configuration.");
     let mut base_config: Configuration<T> = Default::default();
@@ -158,24 +158,24 @@ impl<T: StartMarker> Parse for Configuration<T> {
   }
 }
 
-impl<T: StartMarker> Configuration<T> {
+impl<T: StartMarker + Clone> Configuration<T> {
   fn name(&self) -> Option<String> {
     T::name()
   }
 }
 
 #[derive(Clone)]
-struct Variables<'a, T: StartMarker> {
+struct Variables<'a, T: StartMarker + Clone> {
   handlers:    Handlers<'a, T>,
   with_interp: HashMap<String, TokenStream>,
   no_interp:   HashMap<String, TokenStream>,
 }
 
-type Handler<T: StartMarker> = dyn Fn(Configuration<T>, Variables<T>, TokenStream) -> (Variables<T>, TokenStream);
-type Handlers<'a, T: StartMarker> = HashMap<String, Box<&'a Handler<T>>>;
+type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, TokenStream) -> (Variables<T>, TokenStream);
+type Handlers<'a, T: StartMarker + Clone> = HashMap<String, Box<&'a Handler<T>>>;
 
 
-fn ifHandler<T: StartMarker>(c: Configuration<T>, v: Variables<T>, t: TokenStream) -> (Variables<T>, TokenStream) {
+fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream) -> (Variables<T>, TokenStream) {
   (v, t)
 }
 
@@ -194,11 +194,12 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
     Ok(it) => {
       let mut configuration = it.clone();
       
-      match configuration.clone().rest {
+      let out = match configuration.clone().rest {
         Some(out) => out,
         None      => TokenStream2::new().into(),
       };
       // For now to make testing possible
+      configuration.rest = None;
       do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, defaultHandlers())
     },
     Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
@@ -206,8 +207,36 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
 }
 
 
-fn do_with_in_explicit<T: StartMarker>(t: TokenStream, c: Configuration<T>, h: Handlers<T>) -> TokenStream {
-  t
+fn do_with_in_explicit<T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, h: Handlers<T>) -> TokenStream {
+  let mut output = TokenStream2::new();
+  //check for variables to insert
+  //check for handlers to run
+  //insert token
+  let token_char = match c.clone().sigil {
+    Sigil::Dollar  => '$',
+    Sigil::Percent => '%',
+    Sigil::Hash    => '#',
+  };
+  let mut expecting_variable = false;
+  for token in t.into_iter() {
+    match &token {
+      TokenTree2::Punct(punct_char) if punct_char.spacing() == proc_macro2::Spacing::Alone && punct_char.as_char() == token_char => {
+        if expecting_variable {
+          expecting_variable = false;
+          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(punct_char.clone()));
+          output.extend(out.into_iter());
+        } else {
+          expecting_variable = true;
+        }
+      },
+      //TokenTree2::Ident(ident) => {
+      //},
+      a => {
+        output.extend(TokenStream2::from(a.clone()).into_iter());
+      },
+    }
+  }
+  output.into()
 }
 
 /*
