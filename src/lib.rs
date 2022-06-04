@@ -171,6 +171,12 @@ struct Variables<'a, T: StartMarker + Clone> {
   no_interp:   HashMap<String, TokenStream>,
 }
 
+impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
+  fn default() -> Self {
+    Variables { handlers: genericDefaultHandlers::<'a, T>(), with_interp: HashMap::new(), no_interp: HashMap::new() }
+  }
+}
+
 type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, TokenStream) -> (Variables<T>, TokenStream);
 type Handlers<'a, T: StartMarker + Clone> = HashMap<String, Box<&'a Handler<T>>>;
 
@@ -181,6 +187,12 @@ fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: To
 
 fn defaultHandlers() -> Handlers<'static, DoMarker> {
   let mut m: HashMap<String, Box<&Handler<DoMarker>>> = HashMap::new();
+  m.insert(String::from("if"), Box::new(&ifHandler));
+  m
+}
+
+fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
+  let mut m: HashMap<String, Box<&Handler<T>>> = HashMap::new();
   m.insert(String::from("if"), Box::new(&ifHandler));
   m
 }
@@ -229,8 +241,15 @@ fn do_with_in_explicit<T: StartMarker + Clone>(t: TokenStream2, c: Configuration
           expecting_variable = true;
         }
       },
-      //TokenTree2::Ident(ident) => {
-      //},
+      TokenTree2::Ident(ident) => {
+        if expecting_variable {
+          expecting_variable = false;
+          let var_name = ident.to_string();
+          //if (h.
+        } else {
+          output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
+        }
+      },
       a => {
         output.extend(TokenStream2::from(a.clone()).into_iter());
       },
