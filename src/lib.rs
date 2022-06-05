@@ -221,6 +221,7 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
 
 fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream {
   let mut output = TokenStream2::new();
+  let mut use_vars = v;
   //check for variables to insert
   //check for handlers to run
   //insert token
@@ -246,10 +247,10 @@ fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configura
           expecting_variable = false;
           let var_name = ident.to_string();
           // First we check for no interp, then interp
-          if let Some(replace) = v.no_interp.get(&var_name) {
+          if let Some(replace) = use_vars.no_interp.get(&var_name) {
             output.extend(replace.clone().into_iter());
-          } else if let Some(replace) = v.with_interp.get(&var_name) {
-            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), v.clone())));
+          } else if let Some(replace) = use_vars.with_interp.get(&var_name) {
+            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), use_vars.clone())));
           }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
@@ -259,6 +260,19 @@ fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configura
         if expecting_variable {
           expecting_variable = false;
           // Check whether the handler matches
+          let stream = group.stream();
+          if !stream.is_empty() {
+            let mut iter = stream.clone().into_iter();
+            if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
+              if let Some(handler) = use_vars.clone().handlers.get(&first.to_string()) {
+                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), TokenStream::from(stream));
+                use_vars = new_vars;
+                output.extend(TokenStream2::from(more_output));
+              }
+            }
+
+            //if let Some(handler) = v.handlers.get(
+          }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Group(group.clone())));
         }
