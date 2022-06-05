@@ -167,8 +167,8 @@ impl<T: StartMarker + Clone> Configuration<T> {
 #[derive(Clone)]
 struct Variables<'a, T: StartMarker + Clone> {
   handlers:    Handlers<'a, T>,
-  with_interp: HashMap<String, TokenStream>,
-  no_interp:   HashMap<String, TokenStream>,
+  with_interp: HashMap<String, TokenStream2>,
+  no_interp:   HashMap<String, TokenStream2>,
 }
 
 impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
@@ -212,14 +212,14 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
       };
       // For now to make testing possible
       configuration.rest = None;
-      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, defaultHandlers())
+      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, Variables::default())
     },
     Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
   }
 }
 
 
-fn do_with_in_explicit<T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, h: Handlers<T>) -> TokenStream {
+fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream {
   let mut output = TokenStream2::new();
   //check for variables to insert
   //check for handlers to run
@@ -245,7 +245,12 @@ fn do_with_in_explicit<T: StartMarker + Clone>(t: TokenStream2, c: Configuration
         if expecting_variable {
           expecting_variable = false;
           let var_name = ident.to_string();
-          //if (h.
+          // First we check for no interp, then interp
+          if let Some(replace) = v.no_interp.get(&var_name) {
+            output.extend(replace.clone().into_iter());
+          } else if let Some(replace) = v.with_interp.get(&var_name) {
+            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), v.clone())));
+          }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
         }
