@@ -255,7 +255,20 @@ fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configura
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
         }
       },
+      TokenTree2::Group(group) => {
+        if expecting_variable {
+          expecting_variable = false;
+          // Check whether the handler matches
+        } else {
+          output.extend(TokenStream2::from(TokenTree2::Group(group.clone())));
+        }
+      },
       a => {
+        if expecting_variable {
+          expecting_variable = false;
+          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(proc_macro2::Punct::new(token_char.clone(), proc_macro2::Spacing::Alone)));
+          output.extend(out.into_iter());
+        }
         output.extend(TokenStream2::from(a.clone()).into_iter());
       },
     }
