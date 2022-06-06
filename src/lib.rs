@@ -39,7 +39,7 @@ impl Default for Sigil {
 struct Configuration<Start: StartMarker> where Start: Clone {
   allow_prelude: bool,
   sigil: Sigil,
-  rest: Option<TokenStream>,
+  rest: Option<TokenStream2>,
   _do: PhantomData<Start>,
 }
 
@@ -201,8 +201,12 @@ fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a
 
 #[proc_macro]
 pub fn do_with_in(t: TokenStream) -> TokenStream {
+  do_with_in_internal(t.into()).into()
+}
+
+fn do_with_in_internal(t: TokenStream2) -> TokenStream2 {
   // Check for configuration first
-  match syn::parse::<Configuration<DoMarker>>(t) {
+  match syn::parse2::<Configuration<DoMarker>>(t) {
     Ok(it) => {
       let mut configuration = it.clone();
       
@@ -212,14 +216,14 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
       };
       // For now to make testing possible
       configuration.rest = None;
-      do_with_in_explicit(TokenStream2::from(out), configuration, Variables::default())
+      do_with_in_explicit(TokenStream2::from(out), configuration, Variables::default()).into()
     },
     Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
   }
 }
 
 
-fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream {
+fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream2 {
   let mut output = TokenStream2::new();
   let mut use_vars = v;
   //check for variables to insert
@@ -312,7 +316,9 @@ fn do_with_in_izer(args: TokenStream, body: TokenStream) -> TokenStream {
 
 */
 
-//#[test]
-//fn conf_test_panic2() {
-//  do_with_in!(sigil: % ow2eihf do wiwlkef );
-//}
+#[test]
+fn conf_test_panic1() {
+  let input: TokenStream2 = quote! {sigil: % ow2eihf do wiwlkef }.into();
+  let output = do_with_in_internal(input);
+  assert_eq!(format!("{}", output), format!("{}", TokenStream2::from(quote! {compile_error!{ "Bad configuration section; found ow2eihf when sigil or end of prelude expected" }} )));
+}
