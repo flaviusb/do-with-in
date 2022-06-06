@@ -13,19 +13,22 @@ fn conf_test() {
 
 #[test]
 fn conf_test2() {
-  do_with_in!(sigil: % do wiwlkef );
+  do_with_in!(sigil: % do println!("test"); );
 }
 
 #[test]
 fn conf_test3() {
-  do_with_in!(do wiwef );
+  do_with_in!(do let foo = 3; );
 }
 
 #[test]
 fn handler_test1() {
   do_with_in!(
     sigil: $
-    do $(if foo then bar else baz) efwef );
+    do 
+      $(if foo then bar else baz);
+      println!("After an if");
+  );
 }
 
 

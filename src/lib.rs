@@ -182,7 +182,7 @@ type Handlers<'a, T: StartMarker + Clone> = HashMap<String, Box<&'a Handler<T>>>
 
 
 fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream) -> (Variables<T>, TokenStream) {
-  (v, t)
+  (v, quote!{println!("todo");}.into())
 }
 
 fn defaultHandlers() -> Handlers<'static, DoMarker> {
@@ -212,7 +212,7 @@ pub fn do_with_in(t: TokenStream) -> TokenStream {
       };
       // For now to make testing possible
       configuration.rest = None;
-      do_with_in_explicit(quote! { println!("Todo") }.into(), configuration, Variables::default())
+      do_with_in_explicit(TokenStream2::from(out), configuration, Variables::default())
     },
     Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
   }
@@ -312,3 +312,7 @@ fn do_with_in_izer(args: TokenStream, body: TokenStream) -> TokenStream {
 
 */
 
+//#[test]
+//fn conf_test_panic2() {
+//  do_with_in!(sigil: % ow2eihf do wiwlkef );
+//}
