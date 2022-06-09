@@ -177,23 +177,88 @@ impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
   }
 }
 
-type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, TokenStream) -> (Variables<T>, TokenStream);
+type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, TokenStream2) -> (Variables<T>, TokenStream2);
 type Handlers<'a, T: StartMarker + Clone> = HashMap<String, Box<&'a Handler<T>>>;
 
 
-fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream) -> (Variables<T>, TokenStream) {
+fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   (v, quote!{println!("todo");}.into())
+}
+
+#[derive(Debug,Clone,PartialEq,Eq)]
+enum LetState {
+  LessThanNothing,
+  Nothing,
+  Name(String),
+  NamePostEquals(String),
+}
+
+fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut variables = v.clone();
+  let mut state: LetState = LetState::LessThanNothing;
+
+  for token in t.into_iter() {
+    match state.clone() {
+      LetState::LessThanNothing => {
+        // Consume the initial 'let'
+        if let TokenTree2::Ident(name) = token.clone() {
+          if name.to_string() == "let" {
+            state = LetState::Nothing;
+          } else {
+            let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        } else {
+          let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::Nothing => {
+        if let TokenTree2::Ident(name) = token {
+          state = LetState::Name(name.to_string());
+        } else {
+          let msg = format!("Expected a variable name to start a let expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::Name(var_name) => {
+        if let TokenTree2::Punct(punct) = token.clone() {
+          if punct.as_char() == '=' && punct.spacing() == proc_macro2::Spacing::Alone {
+            state = LetState::NamePostEquals(var_name);
+          } else {
+            let msg = format!("Expected '=', got {}.", token);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        } else {
+          let msg = format!("Expected '=', got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::NamePostEquals(var_name) => {
+        if let TokenTree2::Group(body) = token {
+          variables.no_interp.insert(var_name, body.stream());
+          state = LetState::Nothing;
+        } else {
+          let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+       }
+      },
+    }
+  }
+  (variables, quote!{println!("todo");}.into())
 }
 
 fn defaultHandlers() -> Handlers<'static, DoMarker> {
   let mut m: HashMap<String, Box<&Handler<DoMarker>>> = HashMap::new();
   m.insert(String::from("if"), Box::new(&ifHandler));
+  m.insert(String::from("let"), Box::new(&letHandler));
   m
 }
 
 fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, Box<&Handler<T>>> = HashMap::new();
   m.insert(String::from("if"), Box::new(&ifHandler));
+  m.insert(String::from("let"), Box::new(&letHandler));
   m
 }
 
@@ -269,9 +334,9 @@ fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configura
             let mut iter = stream.clone().into_iter();
             if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
               if let Some(handler) = use_vars.clone().handlers.get(&first.to_string()) {
-                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), TokenStream::from(stream));
+                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), stream);
                 use_vars = new_vars;
-                output.extend(TokenStream2::from(more_output));
+                output.extend(more_output);
               }
             }
 

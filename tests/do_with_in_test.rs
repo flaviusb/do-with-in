@@ -31,6 +31,34 @@ fn handler_test1() {
   );
 }
 
+#[test]
+fn let_nointerp_test1() {
+  let mut x = 3;
+  do_with_in!(
+    sigil: %
+    do
+    %(let foo = { 5; })
+    x = %foo
+  );
+  assert_eq!(x, 5);
+}
+
+#[test]
+fn let_nointerp_test2() {
+  let mut x = 3;
+  do_with_in!(
+    sigil: %
+    do
+    %(let
+      foo = { 5; }
+      bar = {let y = "bar"; })
+    x = %foo;
+    %bar
+  );
+  assert_eq!(x, 5);
+  assert_eq!(y, "bar");
+}
+
 
 
 /*
