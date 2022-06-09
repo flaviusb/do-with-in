@@ -248,10 +248,67 @@ fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: T
   (variables, quote!{println!("todo");}.into())
 }
 
+fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut variables = v.clone();
+  let mut state: LetState = LetState::LessThanNothing;
+
+  for token in t.into_iter() {
+    match state.clone() {
+      LetState::LessThanNothing => {
+        // Consume the initial 'let'
+        if let TokenTree2::Ident(name) = token.clone() {
+          if name.to_string() == "var" {
+            state = LetState::Nothing;
+          } else {
+            let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        } else {
+          let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::Nothing => {
+        if let TokenTree2::Ident(name) = token {
+          state = LetState::Name(name.to_string());
+        } else {
+          let msg = format!("Expected a variable name to start a var expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::Name(var_name) => {
+        if let TokenTree2::Punct(punct) = token.clone() {
+          if punct.as_char() == '=' && punct.spacing() == proc_macro2::Spacing::Alone {
+            state = LetState::NamePostEquals(var_name);
+          } else {
+            let msg = format!("Expected '=', got {}.", token);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        } else {
+          let msg = format!("Expected '=', got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      LetState::NamePostEquals(var_name) => {
+        if let TokenTree2::Group(body) = token {
+          //let to_insert = do_with_in_explicit(body.stream(), c, variables);
+          variables.with_interp.insert(var_name, body.stream());
+          state = LetState::Nothing;
+        } else {
+          let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+       }
+      },
+    }
+  }
+  (variables, quote!{println!("todo");}.into())
+}
+
 fn defaultHandlers() -> Handlers<'static, DoMarker> {
   let mut m: HashMap<String, Box<&Handler<DoMarker>>> = HashMap::new();
   m.insert(String::from("if"), Box::new(&ifHandler));
   m.insert(String::from("let"), Box::new(&letHandler));
+  m.insert(String::from("var"), Box::new(&varHandler));
   m
 }
 
@@ -259,6 +316,7 @@ fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a
   let mut m: HashMap<String, Box<&Handler<T>>> = HashMap::new();
   m.insert(String::from("if"), Box::new(&ifHandler));
   m.insert(String::from("let"), Box::new(&letHandler));
+  m.insert(String::from("var"), Box::new(&varHandler));
   m
 }
 

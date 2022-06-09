@@ -59,6 +59,19 @@ fn let_nointerp_test2() {
   assert_eq!(y, "bar");
 }
 
+#[test]
+fn let_interp_test1() {
+  let mut x = 3;
+  do_with_in!(
+    sigil: %
+    do
+    %(let foo = { 5; })
+    %(var bar = { %foo })
+    x = %bar
+  );
+  assert_eq!(x, 5);
+}
+
 
 
 /*
