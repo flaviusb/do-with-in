@@ -245,7 +245,7 @@ fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: T
       },
     }
   }
-  (variables, quote!{println!("todo");}.into())
+  (variables, quote!{}.into())
 }
 
 fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
@@ -301,7 +301,7 @@ fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: T
       },
     }
   }
-  (variables, quote!{println!("todo");}.into())
+  (variables, quote!{}.into())
 }
 
 fn defaultHandlers() -> Handlers<'static, DoMarker> {
