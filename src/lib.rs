@@ -189,7 +189,13 @@ fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<
   let mut accumulator: Vec<String> = Vec::new();
   for token in t.into_iter() {
     if let TokenTree2::Literal(lit) = token.clone() {
-      accumulator.push(lit.to_string());
+      let real_lit = syn::parse_str::<syn::Lit>(&lit.clone().to_string());
+      match real_lit {
+        Ok(syn::Lit::Str(it)) => accumulator.push(it.value()),
+        Ok(x)            => accumulator.push(lit.to_string()),
+        Err(err)         => return Err(err),
+      }
+      //accumulator.push(lit.to_string());
     } else if let TokenTree2::Group(grp) = token.clone() {
       // Recurse into groups
       match concatHandlerInner(c.clone(), v.clone(), grp.stream()) {

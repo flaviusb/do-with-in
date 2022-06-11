@@ -72,6 +72,7 @@ fn let_interp_test1() {
   assert_eq!(x, 5);
 }
 
+#[test]
 fn concat_test1() {
   do_with_in! {
     sigil: $
@@ -80,6 +81,8 @@ fn concat_test1() {
   }
   assert_eq!(x, "1abc2");
 }
+
+
 
 /*#[test]
 fn for_test1() {
