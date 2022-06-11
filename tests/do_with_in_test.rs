@@ -81,6 +81,22 @@ fn concat_test1() {
   assert_eq!(x, "1abc2");
 }
 
+/*#[test]
+fn for_test1() {
+  do_with_in!{
+    sigil: $
+    do
+    $(for x in [1] [2] [3] {
+      // $(to_ident $(fold ++ $(map to_string ["foo_" $x])))
+      $(var it = {$(to_ident $(concat "foo_" $x))})
+      let $it = $x * 2;
+    })
+  }
+  assert_eq!(foo_1, 2);
+  assert_eq!(foo_2, 4);
+  assert_eq!(foo_3, 6);
+}*/
+
 
 /*
 ** should panic doesn't actually work when erroring out when running a proc macro

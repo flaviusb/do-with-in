@@ -225,6 +225,24 @@ fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t
   return (v, output);
 }
 
+fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  let for_token = stream.next();
+  if let Some(TokenTree2::Ident(name)) = for_token.clone() {
+    for token in stream {
+      
+    }
+  } else if let Some(it) = for_token {
+    let msg = format!("Expected 'for' to absolutely start a for expression, got {}.", it);
+    return (v, quote!{compile_error!{ #msg }}.into());
+  } else {
+    return (v, quote!{compile_error!{ "For expression stream was unexpectedly empty." }}.into());
+  }
+  (v, output)
+}
+
 
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
