@@ -72,6 +72,14 @@ fn let_interp_test1() {
   assert_eq!(x, 5);
 }
 
+fn concat_test1() {
+  do_with_in! {
+    sigil: $
+    do
+    let x = $(concat 1 "abc" 2);
+  }
+  assert_eq!(x, "1abc2");
+}
 
 
 /*

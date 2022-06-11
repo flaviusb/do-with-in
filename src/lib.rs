@@ -185,6 +185,47 @@ fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: To
   (v, quote!{println!("todo");}.into())
 }
 
+fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<String> {
+  let mut accumulator: Vec<String> = Vec::new();
+  for token in t.into_iter() {
+    if let TokenTree2::Literal(lit) = token.clone() {
+      accumulator.push(lit.to_string());
+    } else if let TokenTree2::Group(grp) = token.clone() {
+      // Recurse into groups
+      match concatHandlerInner(c.clone(), v.clone(), grp.stream()) {
+        Ok(it)   => accumulator.push(it),
+        Err(err) => return Err(err),
+      }
+    } else {
+      let msg = format!("Expected a literal (literal string, number, character or etc), got {}.", token);
+      return Err(syn::parse::Error::new_spanned(token, msg));
+    }
+  }
+  let out_str: String = accumulator.into_iter().collect();
+  return Ok(out_str);
+}
+
+fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  let concat_token = stream.next();
+  if let Some(TokenTree2::Ident(name)) = concat_token.clone() {
+    let mut temp = TokenStream2::new();
+    temp.extend(stream);
+    let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+    match concatHandlerInner(c.clone(), v.clone(), new_token_stream) {
+      Ok(it)   => output.extend(TokenStream2::from(TokenTree2::Literal(proc_macro2::Literal::string(&it)))),
+      Err(err) => return (v, err.to_compile_error()),
+    }
+  } else if let Some(it) = concat_token {
+    let msg = format!("Expected 'concat' to absolutely start a concat expression, got {}.", it);
+    return (v, quote!{compile_error!{ #msg }}.into());
+  }
+  return (v, output);
+}
+
+
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
   LessThanNothing,
@@ -309,6 +350,7 @@ fn defaultHandlers() -> Handlers<'static, DoMarker> {
   m.insert(String::from("if"), Box::new(&ifHandler));
   m.insert(String::from("let"), Box::new(&letHandler));
   m.insert(String::from("var"), Box::new(&varHandler));
+  m.insert(String::from("concat"), Box::new(&concatHandler));
   m
 }
 
@@ -317,6 +359,7 @@ fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a
   m.insert(String::from("if"), Box::new(&ifHandler));
   m.insert(String::from("let"), Box::new(&letHandler));
   m.insert(String::from("var"), Box::new(&varHandler));
+  m.insert(String::from("concat"), Box::new(&concatHandler));
   m
 }
 
