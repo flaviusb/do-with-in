@@ -82,6 +82,16 @@ fn concat_test1() {
   assert_eq!(x, "1abc2");
 }
 
+#[test]
+fn concat_test2() {
+  do_with_in! {
+    sigil: $
+    do
+    let x = $(concat 1 "a\"b\\c" 2);
+  }
+  assert_eq!(x, "1a\"b\\c2");
+}
+
 
 
 /*#[test]
