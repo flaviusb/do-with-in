@@ -106,6 +106,19 @@ fn string_to_ident_test1() {
   assert_eq!(foo_3_foo_3, 9);
 }
 
+#[test]
+fn arithmetic_test1() {
+  do_with_in!{
+    sigil: $
+    do
+    let x = $(arithmetic u64 1 + 1 + 1);
+    $(var z = {$(arithmetic f64 4 * 6 / (1 + 4))})
+    let n = $(concat "The number: " $z);
+  }
+  assert_eq!(x, 3);
+  assert_eq!(n, "The number: 4.8f64");
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

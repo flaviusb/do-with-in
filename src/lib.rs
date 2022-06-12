@@ -280,6 +280,191 @@ fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: T
   (v, output)
 }
 
+enum Operator {
+  Plus,
+  Times,
+  Minus,
+  Division,
+}
+
+fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N>>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+  let mut left: Option<N> = None;
+  let mut operator: Option<Operator> = None;
+  for token in t.clone().into_iter() {
+    match left {
+      None => {
+        left = match token.clone() {
+          TokenTree2::Literal(lit) => Some(syn::parse_str::<syn::LitInt>(&lit.to_string())?.base10_parse::<N>()?),
+          TokenTree2::Group(grp) => Some(arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?),
+          it => {
+            let msg = format!("Expected number, got {}", it);
+            return Err(syn::parse::Error::new_spanned(token, msg));
+          },
+        }
+      },
+      Some(num) => {
+        match operator {
+          None => {
+            match token.clone() {
+              TokenTree2::Punct(punct) => {
+                match punct.as_char() {
+                  '+' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Plus);
+                  },
+                  '-' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Minus);
+                  },
+                  '*' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Times);
+                  },
+                  '/' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Division);
+                  },
+                  it   => {
+                    let msg = format!("Expected operator such as +, *, -, or /, got {}", it);
+                    return Err(syn::parse::Error::new_spanned(token, msg));
+                  },
+                }
+                left = Some(num);
+              },
+              it => {
+                let msg = format!("Expected operator such as +, *, -, or /, got {}", it);
+                return Err(syn::parse::Error::new_spanned(token, msg));
+              },
+            }
+          },
+          Some(op) => {
+            let right = match token.clone() {
+              TokenTree2::Literal(lit) => syn::parse_str::<syn::LitInt>(&lit.to_string())?.base10_parse::<N>()?,
+              TokenTree2::Group(grp) => arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?,
+              it => {
+                let msg = format!("Expected number, got {}", it);
+                return Err(syn::parse::Error::new_spanned(token, msg));
+              },
+            };
+            left = Some(match op {
+              Operator::Plus     => num + right,
+              Operator::Times    => num * right,
+              Operator::Minus    => num - right,
+              Operator::Division => num / right,
+            }); //replace with: left = Some(result) 
+            operator = None;
+          },
+        }
+      },
+    }
+  }
+  return match left {
+    Some(n) => Ok(n),
+    None    => Err(syn::parse::Error::new_spanned(t, "No numbers found.")),
+  };
+}
+
+fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  let ar_token = stream.next();
+  if let Some(TokenTree2::Ident(name)) = ar_token.clone() {
+    let mut temp = TokenStream2::new();
+    temp.extend(stream);
+    let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+    let mut new_token_stream_iter = new_token_stream.into_iter();
+    match new_token_stream_iter.next() {
+      Some(TokenTree2::Ident(var_token)) => {
+        let mut temp2 = TokenStream2::new();
+        temp2.extend(new_token_stream_iter);
+       //variables.with_interp.insert(var_token.to_string(), 
+        match var_token.to_string().as_str() {
+          "u64" => {
+            let out = proc_macro2::Literal::u64_suffixed(match arithmeticInternal::<T, u64>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "u32" => {
+            let out = proc_macro2::Literal::u32_suffixed(match arithmeticInternal::<T, u32>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "u16" => {
+            let out = proc_macro2::Literal::u16_suffixed(match arithmeticInternal::<T, u16>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "u8" => {
+            let out = proc_macro2::Literal::u8_suffixed(match arithmeticInternal::<T, u8>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+          "i64" => {
+            let out = proc_macro2::Literal::i64_suffixed(match arithmeticInternal::<T, i64>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "i32" => {
+            let out = proc_macro2::Literal::i32_suffixed(match arithmeticInternal::<T, i32>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "i16" => {
+            let out = proc_macro2::Literal::i16_suffixed(match arithmeticInternal::<T, i16>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "i8" => {
+            let out = proc_macro2::Literal::i8_suffixed(match arithmeticInternal::<T, i8>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+          "f64" => {
+            let out = proc_macro2::Literal::f64_suffixed(match arithmeticInternal::<T, f64>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+         "f32" => {
+            let out = proc_macro2::Literal::f32_suffixed(match arithmeticInternal::<T, f32>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return (v, err.to_compile_error()),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+          it => {
+            let msg = format!("Expected number type (u64, i64, f64, etc), got {}.", it);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        }
+      },
+      Some(x) => {},
+      _ => {},
+    }
+  } else if let Some(it) = ar_token {
+    let msg = format!("Expected 'arithmetic' first, got {}.", it);
+    return (v, quote!{compile_error!{ #msg }}.into());
+  } else {
+    return (v, quote!{compile_error!{ "Arithmetic expression stream was unexpectedly empty." }}.into());
+  }
+  (v, output)
+}
+
+
 
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
@@ -407,6 +592,7 @@ fn defaultHandlers() -> Handlers<'static, DoMarker> {
   m.insert(String::from("var"), Box::new(&varHandler));
   m.insert(String::from("concat"), Box::new(&concatHandler));
   m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
+  m.insert(String::from("arithmetic"), Box::new(&arithmeticHandler));
   m
 }
 
@@ -417,6 +603,7 @@ fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a
   m.insert(String::from("var"), Box::new(&varHandler));
   m.insert(String::from("concat"), Box::new(&concatHandler));
   m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
+  m.insert(String::from("arithmetic"), Box::new(&arithmeticHandler));
   m
 }
 
