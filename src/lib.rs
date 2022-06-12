@@ -231,6 +231,37 @@ fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t
   return (v, output);
 }
 
+fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  let string_to_ident_token = stream.next();
+  if let Some(TokenTree2::Ident(name)) = string_to_ident_token.clone() {
+    let mut temp = TokenStream2::new();
+    temp.extend(stream);
+    let mut new_token_stream_iter = do_with_in_explicit(temp, c.clone(), v.clone()).into_iter();
+    match new_token_stream_iter.next() {
+      Some(TokenTree2::Literal(lit)) => {
+        let real_lit = syn::parse_str::<syn::Lit>(&lit.clone().to_string());
+        match real_lit {
+          Ok(syn::Lit::Str(it)) => output.extend(TokenStream2::from(TokenTree2::Ident(proc_macro2::Ident::new(&it.value(), lit.span())))),
+          Ok(x)            => return (v, quote!{compiler_error!{ "Expected a string." }}.into()),
+          Err(err)         => return (v, err.to_compile_error()),
+        }
+      },
+      Some(x) => {
+        let msg = format!("Expected a literal, got {}.", x);
+        return (v, quote!{compile_error!{ #msg }}.into());
+      },
+      None    => return (v, quote!{compile_error!{ "No string given; cannot create identifier." }}.into()),
+    }
+  } else if let Some(it) = string_to_ident_token {
+    let msg = format!("Expected 'string_to_ident' to absolutely start a string_to_ident expression, got {}.", it);
+    return (v, quote!{compile_error!{ #msg }}.into());
+  }
+  return (v, output);
+}
+
 fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
@@ -375,6 +406,7 @@ fn defaultHandlers() -> Handlers<'static, DoMarker> {
   m.insert(String::from("let"), Box::new(&letHandler));
   m.insert(String::from("var"), Box::new(&varHandler));
   m.insert(String::from("concat"), Box::new(&concatHandler));
+  m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
   m
 }
 
@@ -384,6 +416,7 @@ fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a
   m.insert(String::from("let"), Box::new(&letHandler));
   m.insert(String::from("var"), Box::new(&varHandler));
   m.insert(String::from("concat"), Box::new(&concatHandler));
+  m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
   m
 }
 

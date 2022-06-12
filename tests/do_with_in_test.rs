@@ -92,7 +92,19 @@ fn concat_test2() {
   assert_eq!(x, "1a\"b\\c2");
 }
 
-
+#[test]
+fn string_to_ident_test1() {
+  do_with_in!{
+    sigil: $
+    do
+    $(let i = {3})
+    $(var x = {$(concat "foo" "_" $i)});
+    let $(string_to_ident $x) = $i;
+    let $(string_to_ident $(concat $x "_" $x)) = $i * $i;
+  }
+  assert_eq!(foo_3, 3);
+  assert_eq!(foo_3_foo_3, 9);
+}
 
 /*#[test]
 fn for_test1() {
