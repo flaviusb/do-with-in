@@ -124,15 +124,18 @@ fn for_test1() {
   do_with_in!{
     sigil: $
     do
-    $(for x in [1] [2] [3] {
-      // $(to_ident $(fold ++ $(map to_string ["foo_" $x])))
-      $(var it = {$(to_ident $(concat "foo_" $x))})
-      let $it = $x * 2;
+    $(var i = {0})
+    $(var b = {[(a + b) (a * b) (a)]})
+    $(for x in %b {
+      fn $(string_to_ident $(concat "function_" $i)) (a: i64, b: i64) -> i64 {
+        $x
+      }
+      $(var i = {$(arithmetic $i + 1)})
     })
   }
-  assert_eq!(foo_1, 2);
-  assert_eq!(foo_2, 4);
-  assert_eq!(foo_3, 6);
+  assert_eq!(function_0(1, 2), 3);
+  assert_eq!(function_1(1, 2), 2);
+  assert_eq!(function_2(1, 2), 1);
 }*/
 
 
@@ -150,4 +153,5 @@ fn conf_test_panic2() {
   do_with_in!(sigil: % ow2eihf do wiwlkef );
 }
 */
+
 
