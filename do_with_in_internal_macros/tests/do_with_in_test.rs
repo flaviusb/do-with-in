@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate do_with_in;
+extern crate do_with_in_internal_macros;
 
 #[test]
 fn empty_test() {

@@ -1,5 +1,5 @@
 [package]
-name = "do-with-in"
+name = "do-with-in-internal-macros"
 version = "0.1.0"
 edition = "2021"
 authors = ["Justin (:flaviusb) Marsh <justin.marsh@flaviusb.net>"]
@@ -13,13 +13,8 @@ repository = "https://github.com/flaviusb/do-with-in"
 [lib]
 proc-macro = true
 
-[workspace]
-members = ["do_with_in_base", "do_with_in_internal_macros", "do_with_in_unquote"]
-
 [dependencies]
 quote = "1.0"
 syn = { version = "1.0", features = ["full", "visit", "fold", "extra-traits", "parsing", "proc-macro"] }
 proc-macro2 = "1.0"
-do-with-in-base = { path = "do_with_in_base", version = "0.1.0" }
-do-with-in-internal-macros = { path = "do_with_in_internal_macros", version = "0.1.0" }
-do-with-in-unquote = { path = "do_with_in_unquote", version = "0.1.0" }
+do-with-in-base = { path = "../do_with_in_base", version = "0.1.0" }
