@@ -187,6 +187,22 @@ pub struct Variables<'a, T: StartMarker + Clone> {
   no_interp:   HashMap<String, TokenStream2>,
 }
 
+impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
+  fn to_tokens(&self, tokens: &mut TokenStream2) {
+    let t = T::token_token();
+    let wi = self.with_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
+    let ni = self.no_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
+    let handlers = self.handlers.iter().map(|(k, (v, it))| quote!{ (#k, (Box::new(quote!{#it}), quote!{quote!{#it}})) });
+    tokens.extend(quote!{
+      Variables<#t> {
+        handlers: HashMap::from([#(#handlers),*]),
+        with_interp: HashMap::from([#(#wi),*]),
+        no_interp: HashMap::from([#(#ni),*]),
+      }
+    });
+  }
+}
+
 impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
   fn default() -> Self {
     Variables { handlers: genericDefaultHandlers::<'a, T>(), with_interp: HashMap::new(), no_interp: HashMap::new() }
@@ -194,7 +210,7 @@ impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
 }
 
 pub type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, TokenStream2) -> (Variables<T>, TokenStream2);
-pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, Box<&'a Handler<T>>>;
+pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler<T>>, TokenStream2)>;
 
 
 pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
@@ -605,25 +621,14 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
   (variables, quote!{}.into())
 }
 
-pub fn defaultHandlers() -> Handlers<'static, DoMarker> {
-  let mut m: HashMap<String, Box<&Handler<DoMarker>>> = HashMap::new();
-  m.insert(String::from("if"), Box::new(&ifHandler));
-  m.insert(String::from("let"), Box::new(&letHandler));
-  m.insert(String::from("var"), Box::new(&varHandler));
-  m.insert(String::from("concat"), Box::new(&concatHandler));
-  m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
-  m.insert(String::from("arithmetic"), Box::new(&arithmeticHandler));
-  m
-}
-
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
-  let mut m: HashMap<String, Box<&Handler<T>>> = HashMap::new();
-  m.insert(String::from("if"), Box::new(&ifHandler));
-  m.insert(String::from("let"), Box::new(&letHandler));
-  m.insert(String::from("var"), Box::new(&varHandler));
-  m.insert(String::from("concat"), Box::new(&concatHandler));
-  m.insert(String::from("string_to_ident"), Box::new(&string_to_identHandler));
-  m.insert(String::from("arithmetic"), Box::new(&arithmeticHandler));
+  let mut m: HashMap<String, (Box<&Handler<T>>, TokenStream2)> = HashMap::new();
+  m.insert(String::from("if"), ((Box::new(&ifHandler), quote! { &do_with_in_base::ifHandler })));
+  m.insert(String::from("let"), ((Box::new(&letHandler), quote! { &do_with_in_base::letHandler })));
+  m.insert(String::from("var"), ((Box::new(&varHandler), quote! { &do_with_in_base::varHandler })));
+  m.insert(String::from("concat"), ((Box::new(&concatHandler), quote! { &do_with_in_base::concatHandler })));
+  m.insert(String::from("string_to_ident"), ((Box::new(&string_to_identHandler), quote! { &do_with_in_base::string_to_identHandler })));
+  m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), quote! { &do_with_in_base::arithmeticHandler })));
   m
 }
 
@@ -691,7 +696,7 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
           if !stream.is_empty() {
             let mut iter = stream.clone().into_iter();
             if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
-              if let Some(handler) = use_vars.clone().handlers.get(&first.to_string()) {
+              if let Some((handler, _)) = use_vars.clone().handlers.get(&first.to_string()) {
                 let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), stream);
                 use_vars = new_vars;
                 output.extend(more_output);
