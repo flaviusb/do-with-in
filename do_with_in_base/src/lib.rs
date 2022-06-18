@@ -28,6 +28,16 @@ pub enum Sigil {
   Percent,
   Hash,
 }
+use quote::TokenStreamExt;
+impl ToTokens for Sigil {
+  fn to_tokens(&self, tokens: &mut TokenStream2) {
+    tokens.append(match self {
+      Sigil::Dollar  => Ident::new("do_with_in_base::Sigil::Dollar", proc_macro2::Span::call_site()),
+      Sigil::Percent => Ident::new("do_with_in_base::Sigil::Percent", proc_macro2::Span::call_site()),
+      Sigil::Hash    => Ident::new("do_with_in_base::Sigil::Hash", proc_macro2::Span::call_site()),
+    });
+  }
+}
 
 impl Default for Sigil {
   fn default() -> Self {
@@ -37,10 +47,32 @@ impl Default for Sigil {
 
 #[derive(Debug,Clone)]
 pub struct Configuration<Start: StartMarker> where Start: Clone {
-  allow_prelude: bool,
-  sigil: Sigil,
-  rest: Option<TokenStream2>,
+  pub allow_prelude: bool,
+  pub sigil: Sigil,
+  pub rest: Option<TokenStream2>,
   _do: PhantomData<Start>,
+}
+
+impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
+  fn to_tokens(&self, tokens: &mut TokenStream2) {
+    let c = self.clone();
+    let p = c.allow_prelude;
+    let s = c.sigil;
+    let rest = match c.rest {
+      Some(x) => quote! { Some(quote!{#x}) },
+      None    => quote! { None },
+    };
+    let t = T::token_token();
+
+    tokens.extend(quote!{
+      Configuration<#t> {
+        allow_prelude: #p,
+        sigil: #s,
+        rest: #rest,
+        _do: PhantomData,
+      }
+    });
+  }
 }
 
 type PeekFn = fn(Cursor) -> bool;
@@ -51,6 +83,7 @@ pub trait StartMarker {
   type token: Parse;// = syn::token::Do;
   fn tokenp() -> PeekFn;// = syn::token::Do;
   type tokend: Parse + ToString + Clone;
+  fn token_token() -> TokenStream2;
 }
 
 impl StartMarker for DoMarker {
@@ -65,6 +98,9 @@ impl StartMarker for DoMarker {
     syn::token::Do::peek
   }
   type tokend = syn::Ident;
+  fn token_token() -> TokenStream2 {
+    quote! { do_with_in::DoMarker }
+  }
 }
 
 #[derive(Debug,Clone)]

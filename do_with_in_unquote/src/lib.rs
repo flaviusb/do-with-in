@@ -28,14 +28,10 @@ use do_with_in_base::*;
 fn variables_to_tokens_that_represent_initialising_it<T: StartMarker + Clone>(v: Variables<T>) -> TokenStream2 {
   todo!()
 }
-fn configuration_to_tokens_that_represent_initialising_it<T: StartMarker + Clone>(c: Configuration<T>) -> TokenStream2 {
-  todo!()
-}
 
 pub fn basicUnquoteSpliceHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut out = TokenStream2::new();
   let kv_tok   = variables_to_tokens_that_represent_initialising_it(v.clone());
-  let conf_tok = configuration_to_tokens_that_represent_initialising_it(c);
   // Consume the initial 'unquotesplice'
   let mut tokens = t.into_iter();
   let token = tokens.next();
@@ -47,7 +43,7 @@ pub fn basicUnquoteSpliceHandler<T: StartMarker + Clone>(c: Configuration<T>, v:
         out.extend(quote!{
         {
           let k = #kv_tok;
-          let c = #conf_tok; 
+          let c = #c;
           do_with_in_explicit_internal!(#ident)
         }
         });
