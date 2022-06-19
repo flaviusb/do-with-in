@@ -706,7 +706,10 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
             //if let Some(handler) = v.handlers.get(
           }
         } else {
-          output.extend(TokenStream2::from(TokenTree2::Group(group.clone())));
+          let delim = group.clone().delimiter();
+          output.extend(TokenStream2::from(TokenTree2::Group(
+                proc_macro2::Group::new(delim, do_with_in_explicit(group.stream(), c.clone(), use_vars.clone()))
+          )));
         }
       },
       a => {
