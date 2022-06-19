@@ -27,6 +27,7 @@ pub enum Sigil {
   Dollar,
   Percent,
   Hash,
+  Tilde,
 }
 use quote::TokenStreamExt;
 impl ToTokens for Sigil {
@@ -35,6 +36,7 @@ impl ToTokens for Sigil {
       Sigil::Dollar  => Ident::new("do_with_in_base::Sigil::Dollar", proc_macro2::Span::call_site()),
       Sigil::Percent => Ident::new("do_with_in_base::Sigil::Percent", proc_macro2::Span::call_site()),
       Sigil::Hash    => Ident::new("do_with_in_base::Sigil::Hash", proc_macro2::Span::call_site()),
+      Sigil::Tilde   => Ident::new("do_with_in_base::Sigil::Tilde", proc_macro2::Span::call_site()),
     });
   }
 }
@@ -152,6 +154,9 @@ impl<T: StartMarker + Clone> Parse for Configuration<T> {
           } else if input.peek(Token![#]) {
             input.parse::<Token![#]>()?;
             base_config.sigil = Sigil::Hash;
+          } else if input.peek(Token![~]) {
+            input.parse::<Token![~]>()?;
+            base_config.sigil = Sigil::Tilde;
           }
         },
         a => {return Err(err_pos.error(format!("Bad configuration section; found {} when sigil or end of prelude expected", a)));},
@@ -661,6 +666,7 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
     Sigil::Dollar  => '$',
     Sigil::Percent => '%',
     Sigil::Hash    => '#',
+    Sigil::Tilde   => '~',
   };
   let mut expecting_variable = false;
   for token in t.into_iter() {
