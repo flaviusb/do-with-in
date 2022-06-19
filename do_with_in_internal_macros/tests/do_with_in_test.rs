@@ -119,6 +119,22 @@ fn arithmetic_test1() {
   assert_eq!(n, "The number: 4.8f64");
 }
 
+#[test]
+fn mumble_test() {
+  do_with_in!{
+    sigil: ~
+    do
+    ~(let
+     prefix = {"foo"}
+     base = {3}
+    )
+    fn ~(string_to_ident ~(concat ~prefix "_" ~(arithmetic u64u 1 + ~base))) (it: u64) -> u64 {
+      it * ~base
+    }
+  }
+  assert_eq!(foo_4(4), 12);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

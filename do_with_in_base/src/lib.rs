@@ -417,71 +417,81 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
         temp2.extend(new_token_stream_iter);
        //variables.with_interp.insert(var_token.to_string(), 
         match var_token.to_string().as_str() {
-          "u64" => {
-            let out = proc_macro2::Literal::u64_suffixed(match arithmeticInternal::<T, u64>(c.clone(), v.clone(), temp2) {
+          a @ ("u64" | "u64u") => {
+            let thing = if a == "u64" { proc_macro2::Literal::u64_suffixed } else { proc_macro2::Literal::u64_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, u64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "u32" => {
-            let out = proc_macro2::Literal::u32_suffixed(match arithmeticInternal::<T, u32>(c.clone(), v.clone(), temp2) {
+          a @ ("u32" | "u32u") => {
+            let thing = if a == "u32" { proc_macro2::Literal::u32_suffixed } else { proc_macro2::Literal::u32_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, u32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "u16" => {
-            let out = proc_macro2::Literal::u16_suffixed(match arithmeticInternal::<T, u16>(c.clone(), v.clone(), temp2) {
+          a @ ("u16" | "u16u") => {
+            let thing = if a == "u16" { proc_macro2::Literal::u16_suffixed } else { proc_macro2::Literal::u16_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, u16>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "u8" => {
-            let out = proc_macro2::Literal::u8_suffixed(match arithmeticInternal::<T, u8>(c.clone(), v.clone(), temp2) {
+          a @ ("u8" | "u8u") => {
+            let thing = if a == "u8" { proc_macro2::Literal::u8_suffixed } else { proc_macro2::Literal::u8_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, u8>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-          "i64" => {
-            let out = proc_macro2::Literal::i64_suffixed(match arithmeticInternal::<T, i64>(c.clone(), v.clone(), temp2) {
+          a @ ("i64" | "i64u") => {
+            let thing = if a == "i64" { proc_macro2::Literal::i64_suffixed } else { proc_macro2::Literal::i64_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, i64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "i32" => {
-            let out = proc_macro2::Literal::i32_suffixed(match arithmeticInternal::<T, i32>(c.clone(), v.clone(), temp2) {
+          a @ ("i32" | "i32u") => {
+            let thing = if a == "i32" { proc_macro2::Literal::i32_suffixed } else { proc_macro2::Literal::i32_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, i32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "i16" => {
-            let out = proc_macro2::Literal::i16_suffixed(match arithmeticInternal::<T, i16>(c.clone(), v.clone(), temp2) {
+          a @ ("i16" | "i16u") => {
+            let thing = if a == "i16" { proc_macro2::Literal::i16_suffixed } else { proc_macro2::Literal::i16_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, i16>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "i8" => {
-            let out = proc_macro2::Literal::i8_suffixed(match arithmeticInternal::<T, i8>(c.clone(), v.clone(), temp2) {
+          a @ ("i8" | "i8u") => {
+            let thing = if a == "i8" { proc_macro2::Literal::i8_suffixed } else { proc_macro2::Literal::i8_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, i8>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-          "f64" => {
-            let out = proc_macro2::Literal::f64_suffixed(match arithmeticInternal::<T, f64>(c.clone(), v.clone(), temp2) {
+          a @ ("f64" | "f64u") => {
+            let thing = if a == "f64" { proc_macro2::Literal::f64_suffixed } else { proc_macro2::Literal::f64_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, f64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
-         "f32" => {
-            let out = proc_macro2::Literal::f32_suffixed(match arithmeticInternal::<T, f32>(c.clone(), v.clone(), temp2) {
+          a @ ("f32" | "f32u") => {
+            let thing = if a == "f32" { proc_macro2::Literal::f32_suffixed } else { proc_macro2::Literal::f32_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, f32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
               Err(err) => return (v, err.to_compile_error()),
             });
