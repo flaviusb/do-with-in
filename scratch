@@ -1,3 +1,17 @@
+
+Note to self:
+Check whether the c,v smuggling *actually* works - my hunch is that it won't, as the 'timing' of stage execution doesn't match up.
+If so, rehydrate *inside* the proc macro, by adding a TokenTree:Group to the start of the TokenStream that containst the configuration and variables
+
+Add a 'FromTokens'/'rehydrate' trait, which lets you instantiate the thing from a tokenstream
+
+Always instantiate Configuration<T> as Configuration<DoMarker> as we won't be using this for things with new preludes
+
+Add a 'FromTokens'-y stash as a TokenStream that the handlers will have access to; this can be used for eg code to be interpreted by an interpreter handler rather than trying to rez the whole thing from a token stream per se.
+
+
+
+---
 The environment
 
 - configuration
