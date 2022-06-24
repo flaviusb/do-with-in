@@ -77,6 +77,108 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
   }
 }
 
+macro_rules! check_token {
+  ($y:pat, $z:expr, $err:literal, $v:expr, $err2: literal) => {
+    if let $y = $z {
+      if $v {
+        ()
+      } else {
+        return Err($err2);
+      }
+    } else {
+      return Err($err);
+    }
+  };
+}
+
+#[derive(Debug,Clone)]
+struct ConfigurationChunks {
+  allow_prelude: Option<bool>,
+  sigil: Option<Sigil>,
+  rest: Option<Option<TokenStream2>>,
+  marker: Option<syn::Ident>,
+}
+
+enum Chunks {
+  AllowPrelude,
+  Sigil,
+  Rest,
+}
+
+enum GetChunk {
+  NothingYet,
+  ChunkType(Chunks),
+  Equals(Chunks),
+}
+
+impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
+  type Error = &'static str;
+  fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
+    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: None };
+    let mut iter = value.into_iter();
+    check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Configuration'", conf.to_string() == "Configuration", "Expected 'Configuration'.");
+    check_token!(Some(TokenTree2::Punct(lt)), iter.next(), "Expected '<'", lt.as_char() == '<', "Expected '<'.");
+    if let Some(TokenTree2::Ident(x)) = iter.next() {
+      cc.marker = Some(x);
+    }
+    check_token!(Some(TokenTree2::Punct(gt)), iter.next(), "Expected '>'", gt.as_char() == '>', "Expected '>'.");
+    let inner = if let Some(TokenTree2::Group(group)) = iter.next() {
+      group.stream()
+    } else {
+      return Err("No group when one was expected.");
+    };
+    let mut progress = GetChunk::NothingYet;
+    for thing in inner.into_iter() {
+      match progress {
+        GetChunk::NothingYet => {
+          if let TokenTree2::Ident(name) = thing {
+            progress = GetChunk::ChunkType(match name.to_string().as_str() {
+              "allow_prelude" => Chunks::AllowPrelude,
+              "sigil"         => Chunks::Sigil,
+              "rest"          => Chunks::Rest,
+              x               => return Err("Expecting allow_prelude, sigil, or rest."),
+            });
+          } else {
+            return Err("Expecting allow_prelude, sigil, or rest.");
+          }
+        },
+        GetChunk::ChunkType(chunk) => {
+          check_token!(Some(TokenTree2::Punct(eq)), iter.next(), "Expected ':'", eq.as_char() == ':', "Expected ':'.");
+          progress = GetChunk::Equals(chunk);
+        },
+        GetChunk::Equals(Chunks::AllowPrelude) => {
+          if let TokenTree2::Ident(it) = thing {
+            cc.allow_prelude = Some(match it.to_string().as_str() {
+              "true"  => true,
+              "false" => false,
+              _       => return Err("Expected 'true' or 'false'."),
+            });
+            progress = GetChunk::NothingYet;
+          } else {
+            return Err("Expected 'true' or 'false'");
+          }
+        },
+        GetChunk::Equals(Chunks::Sigil) => {
+          if let TokenTree2::Punct(it) = thing {
+            cc.sigil = Some(match it.as_char() {
+              '$' => Sigil::Dollar,
+              '~' => Sigil::Tilde,
+              '%' => Sigil::Percent,
+              '#' => Sigil::Hash,
+              _ => return Err("Expected $, %, #, or ~."),
+
+            });
+          } else {
+          }
+        },
+        GetChunk::Equals(Chunks::Rest) => {
+        },
+      }
+    }
+    todo!()
+  }
+}
+
 type PeekFn = fn(Cursor) -> bool;
 
 pub trait StartMarker {
