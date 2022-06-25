@@ -32,11 +32,11 @@ pub enum Sigil {
 use quote::TokenStreamExt;
 impl ToTokens for Sigil {
   fn to_tokens(&self, tokens: &mut TokenStream2) {
-    tokens.append(match self {
-      Sigil::Dollar  => Ident::new("do_with_in_base::Sigil::Dollar", proc_macro2::Span::call_site()),
-      Sigil::Percent => Ident::new("do_with_in_base::Sigil::Percent", proc_macro2::Span::call_site()),
-      Sigil::Hash    => Ident::new("do_with_in_base::Sigil::Hash", proc_macro2::Span::call_site()),
-      Sigil::Tilde   => Ident::new("do_with_in_base::Sigil::Tilde", proc_macro2::Span::call_site()),
+    tokens.extend(match self {
+      Sigil::Dollar  => quote!{do_with_in_base::Sigil::Dollar},  //Ident::new("do_with_in_base::Sigil::Dollar", proc_macro2::Span::call_site()),
+      Sigil::Percent => quote!{do_with_in_base::Sigil::Percent}, //Ident::new("do_with_in_base::Sigil::Percent", proc_macro2::Span::call_site()),
+      Sigil::Hash    => quote!{do_with_in_base::Sigil::Hash},    //Ident::new("do_with_in_base::Sigil::Hash", proc_macro2::Span::call_site()),
+      Sigil::Tilde   => quote!{do_with_in_base::Sigil::Tilde},   //Ident::new("do_with_in_base::Sigil::Tilde", proc_macro2::Span::call_site()),
     });
   }
 }
@@ -105,10 +105,21 @@ enum Chunks {
   Rest,
 }
 
+// ~, or Tilde, or Sigil::Tilde, or do_with_in_base::Sigil::Tilde
+enum GetSigil {
+  ExpectingColonsThenSigil,
+  ExpectingColonThenSigil,
+  ExpectingSigil,
+  ExpectingColonsThenEnd,
+  ExpectingColonThenEnd,
+  ExpectingEnd,
+}
+
 enum GetChunk {
   NothingYet,
   ChunkType(Chunks),
   Equals(Chunks),
+  Sigil(GetSigil), //We get the first part of sigil from Equals(Sigil), then pass to the relevant kind of Sigil(GetSigil)
   Some, //Some should only be present when we are expecting a TokenStream2 after Equals(Rest) found a 'Some'
 }
 
@@ -118,6 +129,8 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
     let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: None };
     let mut iter = value.into_iter();
     check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Configuration'", conf.to_string() == "Configuration", "Expected 'Configuration'.");
+    check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+    check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
     check_token!(Some(TokenTree2::Punct(lt)), iter.next(), "Expected '<'", lt.as_char() == '<', "Expected '<'.");
     if let Some(TokenTree2::Ident(x)) = iter.next() {
       cc.marker = Some(x);
@@ -132,19 +145,25 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
     for thing in inner.into_iter() {
       match progress {
         GetChunk::NothingYet => {
-          if let TokenTree2::Ident(name) = thing {
-            progress = GetChunk::ChunkType(match name.to_string().as_str() {
-              "allow_prelude" => Chunks::AllowPrelude,
-              "sigil"         => Chunks::Sigil,
-              "rest"          => Chunks::Rest,
-              x               => return Err("Expecting allow_prelude, sigil, or rest."),
-            });
-          } else {
-            return Err("Expecting allow_prelude, sigil, or rest.");
+          match thing {
+            TokenTree2::Ident(name) => {
+              progress = GetChunk::ChunkType(match name.to_string().as_str() {
+                "allow_prelude" => Chunks::AllowPrelude,
+                "sigil"         => Chunks::Sigil,
+                "rest"          => Chunks::Rest,
+                x               => return Err("Expecting allow_prelude, sigil, or rest."),
+              });
+            },
+            TokenTree2::Punct(comma) if comma.as_char() == ',' => {
+              progress = GetChunk::NothingYet; // We stay at this point in the state machine
+            },
+            _ => {
+              return Err("Expecting allow_prelude, sigil, or rest.");
+            },
           }
         },
         GetChunk::ChunkType(chunk) => {
-          check_token!(Some(TokenTree2::Punct(eq)), iter.next(), "Expected ':'", eq.as_char() == ':', "Expected ':'.");
+          check_token!(TokenTree2::Punct(eq), thing, "Expected ':'", eq.as_char() == ':', "Expected ':'.");
           progress = GetChunk::Equals(chunk);
         },
         GetChunk::Equals(Chunks::AllowPrelude) => {
@@ -160,18 +179,48 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
           }
         },
         GetChunk::Equals(Chunks::Sigil) => {
-          if let TokenTree2::Punct(it) = thing {
-            cc.sigil = Some(match it.as_char() {
-              '$' => Sigil::Dollar,
-              '~' => Sigil::Tilde,
-              '%' => Sigil::Percent,
-              '#' => Sigil::Hash,
-              _ => return Err("Expected $, %, #, or ~."),
-            });
-            progress = GetChunk::NothingYet;
-          } else {
-            return Err("Expected $, %, #, or ~.");
-          }
+          match thing {
+            TokenTree2::Punct(it) => {
+              cc.sigil = Some(match it.as_char() {
+                '$' => Sigil::Dollar,
+                '~' => Sigil::Tilde,
+                '%' => Sigil::Percent,
+                '#' => Sigil::Hash,
+                _ => return Err("Expected $, %, #, or ~."),
+              });
+              progress = GetChunk::NothingYet;
+            },
+            TokenTree2::Ident(it) => {
+              match it.to_string().as_str() {
+                "Tilde" => {
+                  cc.sigil = Some(Sigil::Tilde);
+                  progress = GetChunk::NothingYet;
+                },
+                "Hash"  => {
+                  cc.sigil = Some(Sigil::Hash);
+                  progress = GetChunk::NothingYet;
+                },
+                "Dollar" => {
+                  cc.sigil = Some(Sigil::Dollar);
+                  progress = GetChunk::NothingYet;
+                },
+                "Percent" => {
+                  cc.sigil = Some(Sigil::Percent);
+                  progress = GetChunk::NothingYet;
+                },
+                "Sigil" => {
+                  progress = GetChunk::Sigil(GetSigil::ExpectingColonsThenEnd);
+                },
+                "do_with_in_base" => {
+                  progress = GetChunk::Sigil(GetSigil::ExpectingColonsThenSigil);
+                },
+                _ => return Err("Expected $, %, #, ~, Sigil::..., or do_with_in_base::Sigil::..."),
+              }
+            },
+            _ => {
+              return Err("Expected $, %, #, ~, Sigil::..., or do_with_in_base::Sigil::...");
+            },
+          };
         },
         GetChunk::Equals(Chunks::Rest) => {
           match thing {
@@ -191,6 +240,46 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
               return Err("Expected Some(...) or None.");
             }
           }
+        },
+        GetChunk::Sigil(GetSigil::ExpectingColonsThenSigil) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+          progress = GetChunk::Sigil(GetSigil::ExpectingColonThenSigil);
+        },
+        GetChunk::Sigil(GetSigil::ExpectingColonThenSigil) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
+          progress = GetChunk::Sigil(GetSigil::ExpectingSigil);
+        },
+        GetChunk::Sigil(GetSigil::ExpectingSigil) => {
+          check_token!(TokenTree2::Ident(id), thing, "Expected 'Sigil'.", id.to_string() == "Sigil", "Expected 'Sigil'.");
+          progress = GetChunk::Sigil(GetSigil::ExpectingColonsThenEnd);
+        },
+        GetChunk::Sigil(GetSigil::ExpectingColonsThenEnd) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+          progress = GetChunk::Sigil(GetSigil::ExpectingColonThenEnd);
+        },
+        GetChunk::Sigil(GetSigil::ExpectingColonThenEnd) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
+          progress = GetChunk::Sigil(GetSigil::ExpectingEnd);
+        },
+        GetChunk::Sigil(GetSigil::ExpectingEnd) => {
+          cc.sigil = match thing.to_string().as_str() {
+            "Tilde" => {
+              Some(Sigil::Tilde)
+            },
+            "Hash"  => {
+              Some(Sigil::Hash)
+            },
+            "Dollar" => {
+              Some(Sigil::Dollar)
+            },
+            "Percent" => {
+              Some(Sigil::Percent)
+            },
+            _ => {
+              return Err("Expecting Tilde, Hash, Dollar, or Percent.");
+            },
+          };
+          progress = GetChunk::NothingYet;
         },
         GetChunk::Some => {
           // The new TokenStream must be contained inside a TokenTree2:Group
@@ -214,6 +303,60 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
       _do: PhantomData,
     })
   }
+}
+
+#[test]
+fn test_configuration_level_passing() {
+  let conf1l = Configuration::<DoMarker> {
+    allow_prelude: true,
+    sigil: Sigil::Tilde,
+    rest: None,
+    _do: PhantomData,
+  };
+  let conf2l = Configuration::<DoMarker> {
+    allow_prelude: false,
+    sigil: Sigil::Dollar,
+    rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
+    _do: PhantomData,
+  };
+  let conf1ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: true,
+    sigil: ~,
+    rest: None,
+  }}.try_into().unwrap();
+  let conf1rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: true,
+    sigil: Tilde,
+    rest: None,
+  }}.try_into().unwrap();
+  let tilde = Sigil::Tilde;
+  let dollar = Sigil::Dollar;
+  let conf1rc: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: true,
+    sigil: #tilde,
+    rest: None,
+  }}.try_into().unwrap();
+  let conf2ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: false,
+    sigil: $,
+    rest: Some(foo bar baz(1, 2) () "bloop"),
+  }}.try_into().unwrap();
+  let conf2rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: false,
+    sigil: Sigil::Dollar,
+    rest: Some(foo bar baz(1, 2) () "bloop"),
+  }}.try_into().unwrap();
+  let conf2rc: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
+    allow_prelude: false,
+    sigil: #dollar,
+    rest: Some(foo bar baz(1, 2) () "bloop"),
+  }}.try_into().unwrap();
+  assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1ra));
+  assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1rb));
+  assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1rc));
+  assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2ra));
+  assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2rb));
+  assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2rc));
 }
 
 type PeekFn = fn(Cursor) -> bool;
