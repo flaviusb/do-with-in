@@ -109,6 +109,7 @@ enum GetChunk {
   NothingYet,
   ChunkType(Chunks),
   Equals(Chunks),
+  Some, //Some should only be present when we are expecting a TokenStream2 after Equals(Rest) found a 'Some'
 }
 
 impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
@@ -166,16 +167,52 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
               '%' => Sigil::Percent,
               '#' => Sigil::Hash,
               _ => return Err("Expected $, %, #, or ~."),
-
             });
+            progress = GetChunk::NothingYet;
           } else {
+            return Err("Expected $, %, #, or ~.");
           }
         },
         GetChunk::Equals(Chunks::Rest) => {
+          match thing {
+            TokenTree2::Ident(it) => {
+              match it.to_string().as_str() {
+                "Some" => progress = GetChunk::Some,
+                "None" => {
+                  cc.rest = Some(None);
+                  progress = GetChunk::NothingYet;
+                },
+                _ => {
+                  return Err("Expected Some(...) or None.");
+                },
+              }
+            },
+            _ => {
+              return Err("Expected Some(...) or None.");
+            }
+          }
+        },
+        GetChunk::Some => {
+          // The new TokenStream must be contained inside a TokenTree2:Group
+          cc.rest = Some(match thing {
+            TokenTree2::Group(group) => {
+              Some(group.stream())
+            },
+            _ => {
+              return Err("Expected {...}.");
+            },
+          });
+          progress = GetChunk::NothingYet;
         },
       }
     }
-    todo!()
+    // We actually ignore cc.marker, as we ~ assume that T is correct
+    Ok(Configuration {
+      allow_prelude: cc.allow_prelude.ok_or("Needed 'allow_prelude'.")?,
+      sigil: cc.sigil.ok_or("Needed 'sigil'.")?,
+      rest: cc.rest.ok_or("Needed 'rest'.")?,
+      _do: PhantomData,
+    })
   }
 }
 
