@@ -67,7 +67,7 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
     let t = T::token_token();
 
     tokens.extend(quote!{
-      Configuration<#t> {
+      Configuration::<#t> {
         allow_prelude: #p,
         sigil: #s,
         rest: #rest,
@@ -96,13 +96,14 @@ struct ConfigurationChunks {
   allow_prelude: Option<bool>,
   sigil: Option<Sigil>,
   rest: Option<Option<TokenStream2>>,
-  marker: Option<syn::Ident>,
+  marker: Vec<syn::Ident>,
 }
 
 enum Chunks {
   AllowPrelude,
   Sigil,
   Rest,
+  Do,
 }
 
 // ~, or Tilde, or Sigil::Tilde, or do_with_in_base::Sigil::Tilde
@@ -126,16 +127,38 @@ enum GetChunk {
 impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
-    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: None };
+    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: Vec::new(), };
     let mut iter = value.into_iter();
     check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Configuration'", conf.to_string() == "Configuration", "Expected 'Configuration'.");
     check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
     check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
     check_token!(Some(TokenTree2::Punct(lt)), iter.next(), "Expected '<'", lt.as_char() == '<', "Expected '<'.");
-    if let Some(TokenTree2::Ident(x)) = iter.next() {
-      cc.marker = Some(x);
+    // This bit is a bit tricky, as we expect ⌜ident (colon colon ident)*⌝
+    let mut cont = true;
+    let mut at_all = false;
+    let mut next: Option<TokenTree2> = iter.next();
+    while cont {
+      if let Some(TokenTree2::Ident(x)) = next.clone() {
+        cc.marker.push(x);
+        at_all = true;
+        next = iter.next();
+        match next {
+          Some(TokenTree2::Punct(s)) if s.as_char() == ':' => {
+            check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (second part of ::), for type.", sc.as_char() == ':', "Expected ':' (second part of ::), for type.");
+            next = iter.next();
+          },
+          x => {
+            next = x;
+            cont = false;
+          },
+        }
+      } else if at_all {
+        cont = false;
+      } else {
+        return Err("Expected a part of a type.");
+      }
     }
-    check_token!(Some(TokenTree2::Punct(gt)), iter.next(), "Expected '>'", gt.as_char() == '>', "Expected '>'.");
+    check_token!(Some(TokenTree2::Punct(gt)), next, "Expected '>'", gt.as_char() == '>', "Expected '>'.");
     let inner = if let Some(TokenTree2::Group(group)) = iter.next() {
       group.stream()
     } else {
@@ -151,6 +174,7 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
                 "allow_prelude" => Chunks::AllowPrelude,
                 "sigil"         => Chunks::Sigil,
                 "rest"          => Chunks::Rest,
+                "_do"           => Chunks::Do,
                 x               => return Err("Expecting allow_prelude, sigil, or rest."),
               });
             },
@@ -241,6 +265,10 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
             }
           }
         },
+        GetChunk::Equals(Chunks::Do) => {
+          check_token!(TokenTree2::Ident(doit), thing, "Expected 'PhantomData'.", doit.to_string() == "PhantomData", "Expected 'PhantomData'.");
+          progress = GetChunk::NothingYet;
+        },
         GetChunk::Sigil(GetSigil::ExpectingColonsThenSigil) => {
           check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
           progress = GetChunk::Sigil(GetSigil::ExpectingColonThenSigil);
@@ -285,10 +313,16 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
           // The new TokenStream must be contained inside a TokenTree2:Group
           cc.rest = Some(match thing {
             TokenTree2::Group(group) => {
-              Some(group.stream())
+              let mut inner = group.stream().into_iter();
+              check_token!(Some(TokenTree2::Ident(id)),   inner.next(), "Expected 'quote!{...}'.", id.to_string() == "quote", "Expected 'quote!{...}'.");
+              check_token!(Some(TokenTree2::Punct(bang)), inner.next(), "Expected '!{...}'.", bang.as_char() == '!', "Expected '!{...}'.");
+              match inner.next() {
+                Some(TokenTree2::Group(actual)) => Some(actual.stream()),
+                _                               => return Err("Expected {...}."),
+              }
             },
             _ => {
-              return Err("Expected {...}.");
+              return Err("Expected quote!{...}.");
             },
           });
           progress = GetChunk::NothingYet;
@@ -336,27 +370,31 @@ fn test_configuration_level_passing() {
     sigil: #tilde,
     rest: None,
   }}.try_into().unwrap();
+  let conf1rd: Configuration::<DoMarker> = quote!{#conf1l}.try_into().unwrap();
   let conf2ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: $,
-    rest: Some(foo bar baz(1, 2) () "bloop"),
+    rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
   let conf2rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: Sigil::Dollar,
-    rest: Some(foo bar baz(1, 2) () "bloop"),
+    rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
   let conf2rc: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: #dollar,
-    rest: Some(foo bar baz(1, 2) () "bloop"),
+    rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
+  let conf2rd: Configuration::<DoMarker> = quote!{#conf2l}.try_into().unwrap();
   assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1ra));
   assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1rb));
   assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1rc));
+  assert_eq!(format!("{:?}", conf1l), format!("{:?}", conf1rd));
   assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2ra));
   assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2rb));
   assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2rc));
+  assert_eq!(format!("{:?}", conf2l), format!("{:?}", conf2rd));
 }
 
 type PeekFn = fn(Cursor) -> bool;
