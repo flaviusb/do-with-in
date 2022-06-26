@@ -519,12 +519,23 @@ impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
     let ni = self.no_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
     let handlers = self.handlers.iter().map(|(k, (v, it))| quote!{ (#k, (Box::new(quote!{#it}), quote!{quote!{#it}})) });
     tokens.extend(quote!{
-      Variables<#t> {
+      Variables::<#t> {
         handlers: HashMap::from([#(#handlers),*]),
         with_interp: HashMap::from([#(#wi),*]),
         no_interp: HashMap::from([#(#ni),*]),
       }
     });
+  }
+}
+
+impl<'a, T> TryFrom<TokenStream2> for Variables<'a, T> where T: StartMarker + Clone {
+  type Error = &'static str;
+  fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
+    let mut vars = Variables::<'a, T> { handlers: HashMap::new(), with_interp: HashMap::new(), no_interp: HashMap::new() };
+    let mut iter = value.into_iter();
+    check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Variables'", conf.to_string() == "Variables", "Expected 'Variables'.");
+    todo!();
+    return Ok(vars);
   }
 }
 
