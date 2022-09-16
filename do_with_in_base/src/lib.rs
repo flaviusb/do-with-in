@@ -124,46 +124,55 @@ enum GetChunk {
   Some, //Some should only be present when we are expecting a TokenStream2 after Equals(Rest) found a 'Some'
 }
 
+macro_rules! unwrap_struct {
+  ($name:literal, $iter:ident, $part:ident,  $get_type_bits:stmt) => {
+    {
+      check_token!(Some(TokenTree2::Ident(conf)), $iter.next(), "Expected struct name", conf.to_string() == $name, "Expected struct name");
+      check_token!(Some(TokenTree2::Punct(sc)), $iter.next(), "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+      check_token!(Some(TokenTree2::Punct(sc)), $iter.next(), "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
+      check_token!(Some(TokenTree2::Punct(lt)), $iter.next(), "Expected '<'", lt.as_char() == '<', "Expected '<'.");
+      // This bit is a bit tricky, as we expect ⌜ident (colon colon ident)*⌝
+      let mut cont = true;
+      let mut at_all = false;
+      let mut next: Option<TokenTree2> = $iter.next();
+      while cont {
+        if let Some(TokenTree2::Ident($part)) = next.clone() {
+          $get_type_bits;
+          at_all = true;
+          next = $iter.next();
+          match next {
+            Some(TokenTree2::Punct(s)) if s.as_char() == ':' => {
+              check_token!(Some(TokenTree2::Punct(sc)), $iter.next(), "Expected ':' (second part of ::), for type.", sc.as_char() == ':', "Expected ':' (second part of ::), for type.");
+              next = $iter.next();
+            },
+            x => {
+              next = x;
+              cont = false;
+            },
+          }
+        } else if at_all {
+          cont = false;
+        } else {
+          return Err("Expected a part of a type.");
+        }
+      }
+      check_token!(Some(TokenTree2::Punct(gt)), next, "Expected '>'", gt.as_char() == '>', "Expected '>'.");
+      let inner = if let Some(TokenTree2::Group(group)) = $iter.next() {
+        group.stream()
+      } else {
+        return Err("No group when one was expected.");
+      };
+      inner
+    }
+  }
+}
+
 impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
     let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: Vec::new(), };
     let mut iter = value.into_iter();
-    check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Configuration'", conf.to_string() == "Configuration", "Expected 'Configuration'.");
-    check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
-    check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
-    check_token!(Some(TokenTree2::Punct(lt)), iter.next(), "Expected '<'", lt.as_char() == '<', "Expected '<'.");
-    // This bit is a bit tricky, as we expect ⌜ident (colon colon ident)*⌝
-    let mut cont = true;
-    let mut at_all = false;
-    let mut next: Option<TokenTree2> = iter.next();
-    while cont {
-      if let Some(TokenTree2::Ident(x)) = next.clone() {
-        cc.marker.push(x);
-        at_all = true;
-        next = iter.next();
-        match next {
-          Some(TokenTree2::Punct(s)) if s.as_char() == ':' => {
-            check_token!(Some(TokenTree2::Punct(sc)), iter.next(), "Expected ':' (second part of ::), for type.", sc.as_char() == ':', "Expected ':' (second part of ::), for type.");
-            next = iter.next();
-          },
-          x => {
-            next = x;
-            cont = false;
-          },
-        }
-      } else if at_all {
-        cont = false;
-      } else {
-        return Err("Expected a part of a type.");
-      }
-    }
-    check_token!(Some(TokenTree2::Punct(gt)), next, "Expected '>'", gt.as_char() == '>', "Expected '>'.");
-    let inner = if let Some(TokenTree2::Group(group)) = iter.next() {
-      group.stream()
-    } else {
-      return Err("No group when one was expected.");
-    };
+    let inner = unwrap_struct!("Configuration", iter, x, cc.marker.push(x));
     let mut progress = GetChunk::NothingYet;
     for thing in inner.into_iter() {
       match progress {
@@ -517,7 +526,10 @@ impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
     let t = T::token_token();
     let wi = self.with_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
     let ni = self.no_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
-    let handlers = self.handlers.iter().map(|(k, (v, it))| quote!{ (#k, (Box::new(quote!{#it}), quote!{quote!{#it}})) });
+    let handlers = self.handlers.iter().map(|(k, (v, it))| {
+      
+      quote!{ (#k, (Box::new(quote!{#it}), quote!{quote!{#it}})) }
+    });
     tokens.extend(quote!{
       Variables::<#t> {
         handlers: HashMap::from([#(#handlers),*]),
@@ -528,12 +540,86 @@ impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
   }
 }
 
+enum VariableOpts {
+  Handlers,
+  WithInterp,
+  NoInterp,
+}
+
+enum VariableChunks {
+  NothingYet,
+  Name(VariableOpts),
+  Equals(VariableOpts),
+  HashMap(VariableOpts),
+  FirstColon(VariableOpts),
+  SecondColon(VariableOpts),
+  From(VariableOpts),
+}
+
+
 impl<'a, T> TryFrom<TokenStream2> for Variables<'a, T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
     let mut vars = Variables::<'a, T> { handlers: HashMap::new(), with_interp: HashMap::new(), no_interp: HashMap::new() };
     let mut iter = value.into_iter();
-    check_token!(Some(TokenTree2::Ident(conf)), iter.next(), "Expected 'Variables'", conf.to_string() == "Variables", "Expected 'Variables'.");
+    let inner = unwrap_struct!("Variables", iter, x, ());
+    let mut progress = VariableChunks::NothingYet;
+    for thing in inner.into_iter() {
+      match progress {
+        VariableChunks::NothingYet => {
+          match thing {
+            TokenTree2::Ident(name) => {
+              progress = VariableChunks::Name(match name.to_string().as_str() {
+                "handlers"     => VariableOpts::Handlers,
+                "with_interp"  => VariableOpts::WithInterp,
+                "no_interp"    => VariableOpts::NoInterp,
+                x              => return Err("Expecting handlers, with_interp, or no_interp."),
+              });
+            },
+            TokenTree2::Punct(comma) if comma.as_char() == ',' => {
+              progress = VariableChunks::NothingYet; // We stay at this point in the state machine
+            },
+            _ => {
+              return Err("Expecting handlers, with_interp, or no_interp.");
+            },
+          }
+        },
+        VariableChunks::Name(x) => {
+          check_token!(TokenTree2::Punct(eq), thing, "Expected ':'", eq.as_char() == ':', "Expected ':'.");
+          progress = VariableChunks::Equals(x);
+        },
+        VariableChunks::Equals(x) => {
+          check_token!(TokenTree2::Ident(conf), thing, "Expected 'HashMap'.", conf.to_string() == "HashMap", "Expected 'HashMap'.");
+          progress = VariableChunks::FirstColon(x);
+        },
+        VariableChunks::HashMap(x) => {
+          check_token!(TokenTree2::Punct(eq), thing, "Expected ':'", eq.as_char() == ':', "Expected ':'.");
+          progress = VariableChunks::FirstColon(x);
+        },
+        VariableChunks::FirstColon(x) => {
+          check_token!(TokenTree2::Punct(eq), thing, "Expected ':'", eq.as_char() == ':', "Expected ':'.");
+          progress = VariableChunks::SecondColon(x);
+        },
+        VariableChunks::SecondColon(x) => {
+          check_token!(TokenTree2::Ident(conf), thing, "Expected 'from'.", conf.to_string() == "from", "Expected 'from'.");
+          progress = VariableChunks::From(x);
+        },
+        VariableChunks::From(x) => {
+          match thing {
+            TokenTree2::Group(from_args) if from_args.delimiter() == proc_macro2::Delimiter::Parenthesis => {
+              match from_args.stream().into_iter().next() {
+                Some(TokenTree2::Group(array)) if array.delimiter() == proc_macro2::Delimiter::Bracket => {
+                  //
+                },
+                _ => return Err("Expected [...]."),
+              }
+            },
+            _ => return Err("Expected (...)."),
+          }
+          progress = VariableChunks::NothingYet;
+        },
+      }
+    }
     todo!();
     return Ok(vars);
   }
