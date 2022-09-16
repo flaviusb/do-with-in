@@ -932,6 +932,31 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   (v, output)
 }
 
+// logic x logic: & | ! ~ = != ~=
+// arith x arith: > < = <= >= != ~=
+pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  let ar_token = stream.next();
+  if let Some(TokenTree2::Ident(name)) = ar_token.clone() {
+    if name.to_string() == "logic" {
+      let mut temp = TokenStream2::new();
+      temp.extend(stream);
+      let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+    } else {
+      let msg = format!("Expected 'logic' first, got {}.", name);
+      return (v, quote!{compile_error!{ #msg }}.into());
+    }
+  } else if let Some(it) = ar_token {
+    let msg = format!("Expected 'logic' first, got {}.", it);
+    return (v, quote!{compile_error!{ #msg }}.into());
+  } else {
+    return (v, quote!{compile_error!{ "Logic expression stream was unexpectedly empty." }}.into());
+  }
+  (v, output)
+}
+
 
 
 #[derive(Debug,Clone,PartialEq,Eq)]
