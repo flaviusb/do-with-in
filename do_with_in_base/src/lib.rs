@@ -957,7 +957,93 @@ pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
   (v, output)
 }
 
+/*
+ * ($fn name(_ foo, _ inner = {default}, bar = {wesf e2f}, named inner_name_2 = {,,, wefi 2we,f 2qwef}) { })
+ *
+ *
+ */
+#[derive(Debug,Clone)]
+enum FnDefineState {
+  LessThanNothing,
+  Nothing,
+  Name(String),
+  NameAnd(String, proc_macro2::Group),
+  NameAndAnd(String,  proc_macro2::Group, proc_macro2::Group),
+}
 
+#[derive(Debug,Clone)]
+enum FnCallState {
+  Nothing,
+  Name(String),
+  NameCallsiteArgs(String, TokenStream),
+  NameCallsiteArgsDefineArgs(String, TokenStream, TokenStream),
+  NameCallsiteArgsDefineArgsCallsiteBody(String, TokenStream, TokenStream, TokenStream),
+}
+pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  match data.clone() {
+    None => {
+      let msg = format!("Expected a function body, got none, for function call {:?}", t);
+      return (v, quote!{compile_error!{ #msg }}.into());
+    },
+    Some(program) => {
+      todo!()
+    },
+  }
+}
+pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut variables = v.clone();
+  let mut state: FnDefineState = FnDefineState::LessThanNothing;
+  for token in t.into_iter() {
+    match state.clone() {
+      FnDefineState::LessThanNothing => {
+        // Consume the initial 'let'
+        if let TokenTree2::Ident(name) = token.clone() {
+          if name.to_string() == "let" {
+            state = FnDefineState::Nothing;
+          } else {
+            let msg = format!("Expected 'fn' to absolutely start a fn expression, got {}.", token);
+            return (v, quote!{compile_error!{ #msg }}.into());
+          }
+        } else {
+          let msg = format!("Expected 'fn' to absolutely start a let expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      FnDefineState::Nothing => {
+        if let TokenTree2::Ident(name) = token {
+          state = FnDefineState::Name(name.to_string());
+        } else {
+          let msg = format!("Expected a function name to start a fn expression, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      FnDefineState::Name(name) => {
+        if let TokenTree2::Group(args) = token {
+          state = FnDefineState::NameAnd(name, args);
+        } else {
+          let msg = format!("Expected an arglist, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      FnDefineState::NameAnd(name, args) => {
+        if let TokenTree2::Group(body) = token {
+          state = FnDefineState::NameAndAnd(name, args, body);
+        } else {
+          let msg = format!("Expected a function body, got {}.", token);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      },
+      FnDefineState::NameAndAnd(name, args, body) => {
+        let mut stream = TokenStream2::new();
+        stream.extend(TokenStream2::from(TokenTree2::Group(args)).into_iter());
+        stream.extend(TokenStream2::from(TokenTree2::Group(body)).into_iter());
+        variables.handlers.insert(name, (Box::new(&internalFnRunner), Some(stream)));
+      },
+    }
+  }
+  
+  (variables, quote!{ } )
+}
 
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
@@ -966,8 +1052,7 @@ enum LetState {
   Name(String),
   NamePostEquals(String),
 }
-
-pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut variables = v.clone();
   let mut state: LetState = LetState::LessThanNothing;
 
@@ -1086,6 +1171,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("concat"), ((Box::new(&concatHandler), None)));
   m.insert(String::from("string_to_ident"), ((Box::new(&string_to_identHandler), None)));
   m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), None)));
+  m.insert(String::from("fn"), ((Box::new(&fnHandler), None)));
   m
 }
 
