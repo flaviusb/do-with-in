@@ -975,18 +975,69 @@ enum FnDefineState {
 enum FnCallState {
   Nothing,
   Name(String),
-  NameCallsiteArgs(String, TokenStream),
-  NameCallsiteArgsDefineArgs(String, TokenStream, TokenStream),
-  NameCallsiteArgsDefineArgsCallsiteBody(String, TokenStream, TokenStream, TokenStream),
+  NameArgs(String, proc_macro2::Group),
+  NameArgsBody(String, proc_macro2::Group, proc_macro2::Group),
+}
+
+#[derive(Debug,Clone)]
+enum FnArg {
+  NoDefault(String),
+  Default(String, TokenStream2),
+}
+#[derive(Debug,Clone)]
+struct FnArgs {
+  positional: Vec<FnArg>,
+  named: HashMap<String, FnArg>,
 }
 pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut stream = t.clone().into_iter();
+  let mut state = FnCallState::Nothing;
   match data.clone() {
     None => {
       let msg = format!("Expected a function body, got none, for function call {:?}", t);
       return (v, quote!{compile_error!{ #msg }}.into());
     },
     Some(program) => {
-      todo!()
+      // First we get the function's name
+      if let Some(TokenTree2::Ident(name)) = stream.next() {
+        state = FnCallState::Name(name.to_string());
+        for token in stream {
+          match state {
+            FnCallState::Nothing => {
+              return (v, quote!{compile_error!{ "Confused state in internalFnRunner." }}.into())
+            },
+            FnCallState::Name(name) => {
+              if let TokenTree2::Group(args) = token.clone() {
+                state = FnCallState::NameArgs(name, args);
+              } else {
+                let msg = format!("Expected a function argument list in the function {} runner data; got {:?}", name, token);
+                return (v, quote!{compile_error!{ #msg }}.into());
+              }
+            },
+            FnCallState::NameArgs(name, args) => {
+              if let TokenTree2::Group(body) = token.clone() {
+                state = FnCallState::NameArgsBody(name, args, body);
+              } else {
+                let msg = format!("Expected a function body in the function {} runner data; got {:?}", name, token);
+                return (v, quote!{compile_error!{ #msg }}.into());
+              }
+            },
+            unexpected => {
+              let msg = format!("Got more stuff in the function {} runner data; internal state {:?}, data {:?}", name, unexpected, token);
+              return (v, quote!{compile_error!{ #msg }}.into());
+            },
+          }
+        }
+        if let FnCallState::NameArgsBody(name, args, body) = state {
+          // Create an argument matcher
+          let required_args: Vec<String> = Vec::new(); // Put the inner name of each argument with no default in here; we check at the end that we have them all.
+          todo!()
+        } else {
+          (v, quote!{compile_error!{ "Did not have a body in the internal function runner's data." }}.into())
+        }
+      } else {
+        return (v, quote!{compile_error!{ "Expected a named function." }}.into());
+      }
     },
   }
 }
