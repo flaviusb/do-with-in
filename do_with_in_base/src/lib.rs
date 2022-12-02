@@ -47,10 +47,34 @@ impl Default for Sigil {
   }
 }
 
+#[derive(Debug,Copy,Clone,PartialEq,Eq)]
+pub enum Escaping {
+  None,
+  Backslash,
+  Double,
+}
+
+impl ToTokens for Escaping {
+  fn to_tokens(&self, tokens: &mut TokenStream2) {
+    tokens.extend(match self {
+      Escaping::None      => quote!{do_with_in_base::Escaping::None},
+      Escaping::Backslash => quote!{do_with_in_base::Escaping::Backslash},
+      Escaping::Double    => quote!{do_with_in_base::Escaping::Double},
+    });
+  }
+}
+
+impl Default for Escaping {
+  fn default() -> Self {
+    Escaping::Double
+  }
+}
+
 #[derive(Debug,Clone)]
 pub struct Configuration<Start: StartMarker> where Start: Clone {
   pub allow_prelude: bool,
   pub sigil: Sigil,
+  pub escaping_style: Escaping,
   pub rest: Option<TokenStream2>,
   _do: PhantomData<Start>,
 }
@@ -60,6 +84,7 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
     let c = self.clone();
     let p = c.allow_prelude;
     let s = c.sigil;
+    let e = c.escaping_style;
     let rest = match c.rest {
       Some(x) => quote! { Some(quote!{#x}) },
       None    => quote! { None },
@@ -70,6 +95,7 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
       Configuration::<#t> {
         allow_prelude: #p,
         sigil: #s,
+        escaping_style: #e,
         rest: #rest,
         _do: PhantomData,
       }
@@ -95,6 +121,7 @@ macro_rules! check_token {
 struct ConfigurationChunks {
   allow_prelude: Option<bool>,
   sigil: Option<Sigil>,
+  escaping_style: Option<Escaping>,
   rest: Option<Option<TokenStream2>>,
   marker: Vec<syn::Ident>,
 }
@@ -102,6 +129,7 @@ struct ConfigurationChunks {
 enum Chunks {
   AllowPrelude,
   Sigil,
+  EscapingStyle,
   Rest,
   Do,
 }
@@ -116,11 +144,22 @@ enum GetSigil {
   ExpectingEnd,
 }
 
+// Double, or Expecting::Double, or do_with_in_base::Expecting::Double
+enum GetEscaping {
+  ExpectingColonsThenEscaping,
+  ExpectingColonThenEscaping,
+  ExpectingEscaping,
+  ExpectingColonsThenEnd,
+  ExpectingColonThenEnd,
+  ExpectingEnd,
+}
+
 enum GetChunk {
   NothingYet,
   ChunkType(Chunks),
   Equals(Chunks),
   Sigil(GetSigil), //We get the first part of sigil from Equals(Sigil), then pass to the relevant kind of Sigil(GetSigil)
+  Escaping(GetEscaping),
   Some, //Some should only be present when we are expecting a TokenStream2 after Equals(Rest) found a 'Some'
 }
 
@@ -170,7 +209,7 @@ macro_rules! unwrap_struct {
 impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
-    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, rest: None, marker: Vec::new(), };
+    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, escaping_style: None, rest: None, marker: Vec::new(), };
     let mut iter = value.into_iter();
     let inner = unwrap_struct!("Configuration", iter, x, cc.marker.push(x));
     let mut progress = GetChunk::NothingYet;
@@ -180,18 +219,19 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
           match thing {
             TokenTree2::Ident(name) => {
               progress = GetChunk::ChunkType(match name.to_string().as_str() {
-                "allow_prelude" => Chunks::AllowPrelude,
-                "sigil"         => Chunks::Sigil,
-                "rest"          => Chunks::Rest,
-                "_do"           => Chunks::Do,
-                x               => return Err("Expecting allow_prelude, sigil, or rest."),
+                "allow_prelude"  => Chunks::AllowPrelude,
+                "sigil"          => Chunks::Sigil,
+                "escaping_style" => Chunks::EscapingStyle,
+                "rest"           => Chunks::Rest,
+                "_do"            => Chunks::Do,
+                x                => return Err("Expecting allow_prelude, sigil, escaping_style, or rest."),
               });
             },
             TokenTree2::Punct(comma) if comma.as_char() == ',' => {
               progress = GetChunk::NothingYet; // We stay at this point in the state machine
             },
             _ => {
-              return Err("Expecting allow_prelude, sigil, or rest.");
+              return Err("Expecting allow_prelude, sigil, escaping_style, or rest.");
             },
           }
         },
@@ -253,6 +293,34 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
             _ => {
               return Err("Expected $, %, #, ~, Sigil::..., or do_with_in_base::Sigil::...");
             },
+          };
+        },
+        GetChunk::Equals(Chunks::EscapingStyle) => {
+          match thing {
+            TokenTree2::Ident(it) => {
+              match it.to_string().as_str() {
+                "None"      => {
+                  cc.escaping_style = Some(Escaping::None);
+                  progress = GetChunk::NothingYet;
+                },
+                "Double"    => {
+                  cc.escaping_style = Some(Escaping::Double);
+                  progress = GetChunk::NothingYet;
+                },
+                "Backslash" => {
+                  cc.escaping_style = Some(Escaping::Backslash);
+                  progress = GetChunk::NothingYet;
+                },
+                "Escaping"  => {
+                  progress = GetChunk::Escaping(GetEscaping::ExpectingColonsThenEnd);
+                },
+                "do_with_in_base" => {
+                  progress = GetChunk::Escaping(GetEscaping::ExpectingColonsThenEscaping);
+                },
+                _ => return Err("Expected do_with_in_base, Escaping, None, Double, or Backslash"),
+              }
+            },
+            x => return Err("Expected a chunk escaping style."),
           };
         },
         GetChunk::Equals(Chunks::Rest) => {
@@ -318,6 +386,43 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
           };
           progress = GetChunk::NothingYet;
         },
+        GetChunk::Escaping(GetEscaping::ExpectingColonsThenEscaping) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+          progress = GetChunk::Escaping(GetEscaping::ExpectingColonThenEscaping);
+        },
+        GetChunk::Escaping(GetEscaping::ExpectingColonThenEscaping) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
+          progress = GetChunk::Escaping(GetEscaping::ExpectingEscaping);
+        },
+        GetChunk::Escaping(GetEscaping::ExpectingEscaping) => {
+          check_token!(TokenTree2::Ident(id), thing, "Expected 'Escaping'.", id.to_string() == "Escaping", "Expected 'Escaping'.");
+          progress = GetChunk::Escaping(GetEscaping::ExpectingColonsThenEnd);
+        },
+        GetChunk::Escaping(GetEscaping::ExpectingColonsThenEnd) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (first part of ::).", sc.as_char() == ':', "Expected ':' (first part of ::).");
+          progress = GetChunk::Escaping(GetEscaping::ExpectingColonThenEnd);
+        },
+        GetChunk::Escaping(GetEscaping::ExpectingColonThenEnd) => {
+          check_token!(TokenTree2::Punct(sc), thing, "Expected ':' (second part of ::).", sc.as_char() == ':', "Expected ':' (second part of ::).");
+          progress = GetChunk::Escaping(GetEscaping::ExpectingEnd);
+        },
+        GetChunk::Escaping(GetEscaping::ExpectingEnd) => {
+          cc.escaping_style = match thing.to_string().as_str() {
+            "None" => {
+              Some(Escaping::None)
+            },
+            "Double"  => {
+              Some(Escaping::Double)
+            },
+            "Backslash" => {
+              Some(Escaping::Backslash)
+            },
+            _ => {
+              return Err("Expecting one, Double, or Backslash.");
+            },
+          };
+          progress = GetChunk::NothingYet;
+        },
         GetChunk::Some => {
           // The new TokenStream must be contained inside a TokenTree2:Group
           cc.rest = Some(match thing {
@@ -342,6 +447,7 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
     Ok(Configuration {
       allow_prelude: cc.allow_prelude.ok_or("Needed 'allow_prelude'.")?,
       sigil: cc.sigil.ok_or("Needed 'sigil'.")?,
+      escaping_style: cc.escaping_style.unwrap_or_default(),
       rest: cc.rest.ok_or("Needed 'rest'.")?,
       _do: PhantomData,
     })
@@ -353,30 +459,36 @@ fn test_configuration_level_passing() {
   let conf1l = Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: Sigil::Tilde,
+    escaping_style: Escaping::None,
     rest: None,
     _do: PhantomData,
   };
   let conf2l = Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: Sigil::Dollar,
+    escaping_style: Escaping::Double,
     rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
     _do: PhantomData,
   };
   let conf1ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: ~,
+    escaping_style: Escaping::None,
     rest: None,
   }}.try_into().unwrap();
   let conf1rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: Tilde,
+    escaping_style: Escaping::None,
     rest: None,
   }}.try_into().unwrap();
   let tilde = Sigil::Tilde;
   let dollar = Sigil::Dollar;
+  let escaping = Escaping::None;
   let conf1rc: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: #tilde,
+    escaping_style: #escaping,
     rest: None,
   }}.try_into().unwrap();
   let conf1rd: Configuration::<DoMarker> = quote!{#conf1l}.try_into().unwrap();
@@ -440,7 +552,7 @@ pub struct DoMarker;
 impl<T: StartMarker + Clone> Default for Configuration<T> {
   fn default() -> Self {
     //dbg!("Configuration<T>::default()");
-    Configuration { allow_prelude: true, sigil: Sigil::default(), rest: None, _do: PhantomData }
+    Configuration { allow_prelude: true, rest: None, sigil: Default::default(), escaping_style: Default::default(), _do: PhantomData, }
   }
 }
 
