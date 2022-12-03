@@ -1044,6 +1044,28 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   (v, output)
 }
 
+pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  todo!()
+}
+pub fn escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  match c.escaping_style {
+    Escaping::None      => (v, t),
+    Escaping::Double    => actually_escape(c, v, data, quote!{ Double #t }),
+    Escaping::Backslash => actually_escape(c, v, data, quote!{ Backslash #t }),
+  }
+}
+
+pub fn actually_unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  todo!()
+}
+pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  match c.escaping_style {
+    Escaping::None      => (v, t),
+    Escaping::Double    => actually_unescape(c, v, data, quote!{ Double #t }),
+    Escaping::Backslash => actually_unescape(c, v, data, quote!{ Backslash #t }),
+  }
+}
+
 // logic x logic: & | ! ~ = != ~=
 // arith x arith: > < = <= >= != ~=
 pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
