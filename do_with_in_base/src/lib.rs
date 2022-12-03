@@ -1065,6 +1065,21 @@ pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, da
     Escaping::Backslash => actually_unescape(c, v, data, quote!{ Backslash #t }),
   }
 }
+ 
+pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let out = match c.sigil {
+    Sigil::Dollar  => quote!{ $(quote #t) },
+    Sigil::Percent => quote!{ %(quote #t) },
+    Sigil::Hash    => quote!{ #(quote #t) },
+    Sigil::Tilde   => quote!{ ~(quote #t) },
+  };
+  (v, out)
+}
+
+pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  todo!();
+  (v, out)
+}
 
 // logic x logic: & | ! ~ = != ~=
 // arith x arith: > < = <= >= != ~=
