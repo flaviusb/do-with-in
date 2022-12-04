@@ -1168,9 +1168,68 @@ pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, dat
   (v, out)
 }
 
+enum LogicBoolOp {
+  And,
+  Or,
+  Not,
+  Equals,
+  NotEquals,
+}
+fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut left: Option<bool> = None;
+  let mut operator: Option<LogicBoolOp> = None;
+  todo!()
+}
+fn logicInternalNum<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  todo!()
+}
+
+fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  // We check whether it is a number of a bool, and split which one at that point
+  let mut to_check = t.clone().into_iter();
+  match to_check.next() {
+    None => (v, quote!{compile_error!{ "Empty logic expression." }}.into()),
+    Some(TokenTree2::Ident(x)) if (x.to_string() == "true") || (x.to_string() == "false") => logicInternalBool(c, v, data, t),
+    Some(TokenTree2::Literal(x)) => logicInternalNum(c, v, data, t),
+    Some(TokenTree2::Group(x)) => {
+      let mut inner = TokenStream2::new();
+      inner.extend(x.stream());
+      let (_, left) = logicInternal(c.clone(), v.clone(), data.clone(), inner);
+      let left_first = left.into_iter().next();
+      match left_first {
+        None => (v, quote!{compile_error!{ "Empty logic expression." }}.into()),
+        Some(TokenTree2::Ident(x)) if (x.to_string() == "true") || (x.to_string() == "false") => {
+          let mut new_stream = TokenStream2::new();
+          new_stream.extend(TokenStream2::from(TokenTree2::Ident(x)));
+          let mut skip_first = t.into_iter();
+          skip_first.next();
+          new_stream.extend(skip_first);
+          logicInternalBool(c, v, data, new_stream)
+        },
+        Some(TokenTree2::Literal(x)) => {
+          let mut new_stream = TokenStream2::new();
+          new_stream.extend(TokenStream2::from(TokenTree2::Literal(x)));
+          let mut skip_first = t.into_iter();
+          skip_first.next();
+          new_stream.extend(skip_first);
+          logicInternalNum(c, v, data, new_stream)
+        },
+        Some(x) => {
+          let msg = format!("Problem in logic lhs; expected true, false, or a number, got {:?}.", x);
+          (v, quote!{compile_error!{ #msg }}.into())
+        },
+      }
+    },
+    Some(x) => {
+      let msg = format!("Problem in logic lhs; expected true, false, or a number, got {:?}.", x);
+      (v, quote!{compile_error!{ #msg }}.into())
+    }
+  }
+}
+
 // logic x logic: & | ! ~ = != ~=
 // arith x arith: > < = <= >= != ~=
-pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1180,6 +1239,7 @@ pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       let mut temp = TokenStream2::new();
       temp.extend(stream);
       let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+      return logicInternal(c, v, data, new_token_stream);
     } else {
       let msg = format!("Expected 'logic' first, got {}.", name);
       return (v, quote!{compile_error!{ #msg }}.into());
