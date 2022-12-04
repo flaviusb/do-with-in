@@ -1219,6 +1219,19 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
   let mut to_check = t.clone().into_iter();
   match to_check.next() {
     None => (v, quote!{compile_error!{ "Empty logic expression." }}.into()),
+    Some(TokenTree2::Punct(x)) if x.as_char() == '!' => {
+      let mut rest = TokenStream2::new();
+      rest.extend(to_check);
+      let (v, out) = logicInternalBool(c, v, data, rest);
+      return match out.into_iter().next() {
+        Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => (v, quote!{ false }),
+        Some(TokenTree2::Ident(x)) if x.to_string() == "false" => (v, quote!{ true }),
+        x => {
+          let msg = format!{"Expected a boolean in a not clause, got {:?}", x};
+          (v, quote!{compiler_error!{ #msg }})
+        },
+      };
+    },
     Some(TokenTree2::Ident(x)) if (x.to_string() == "true") || (x.to_string() == "false") => logicInternalBool(c, v, data, t),
     Some(TokenTree2::Literal(x)) => logicInternalNum(c, v, data, t),
     Some(TokenTree2::Group(x)) => {
