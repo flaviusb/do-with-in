@@ -153,6 +153,34 @@ fn quote_test() {
   assert_eq!(z, 7);
 }
 
+#[test]
+fn quote_more_test() {
+  do_with_in!{
+    sigil: ~
+    escaping_style: Double
+    do
+      ~(let
+        x = {1}
+        y = {2}
+        )
+      ~(var
+        thing  = {~(quote ~x + ~y)}
+        thing2 = {~(arithmetic u64 ~x + ~y)}
+        thing3 = {~x + ~y}
+        )
+      ~(let
+        x = {3}
+        y = {4}
+        )
+      let z1 = ~(run ~(unquote ~thing));
+      let z2 = ~thing2;
+      let z3 = ~thing3;
+  }
+  assert_eq!(z1, 7);
+  assert_eq!(z2, 3);
+  assert_eq!(z3, 3);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

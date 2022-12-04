@@ -1123,11 +1123,12 @@ pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Op
 }
 // TODO: Remeber to check for whether 'quote' ends up stacking up due to everything inside the $(...) being passed through the t
 pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  // Remember that the first token of t should already be 'quote'
   let out = match c.sigil {
-    Sigil::Dollar  => quote!{ $(quote #t) },
-    Sigil::Percent => quote!{ %(quote #t) },
-    Sigil::Hash    => quote!{ #(quote #t) },
-    Sigil::Tilde   => quote!{ ~(quote #t) },
+    Sigil::Dollar  => quote!{ $(#t) },
+    Sigil::Percent => quote!{ %(#t) },
+    Sigil::Hash    => quote!{ #(#t) },
+    Sigil::Tilde   => quote!{ ~(#t) },
   };
   (v, out)
 }
@@ -1436,8 +1437,8 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
       },
       LetState::NamePostEquals(var_name) => {
         if let TokenTree2::Group(body) = token {
-          //let to_insert = do_with_in_explicit(body.stream(), c, variables);
-          variables.with_interp.insert(var_name, body.stream());
+          let to_insert = do_with_in_explicit(body.stream(), c.clone(), variables.clone());
+          variables.with_interp.insert(var_name, to_insert);
           state = LetState::Nothing;
         } else {
           let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
