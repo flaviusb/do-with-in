@@ -181,6 +181,44 @@ fn quote_more_test() {
   assert_eq!(z3, 3);
 }
 
+#[test]
+fn basic_logic_test() {
+  do_with_in!{
+    sigil: #
+    do
+    let x1 = #(logic false | true);
+    let x2 = #(logic false | false);
+    let x3 = #(logic (! false) | false);
+    let x4 = #(logic true | true);
+    let x5 = #(logic true | false);
+    let x6 = #(logic false ^ true);
+    let x7 = #(logic false ^ false);
+    let x8 = #(logic false & true);
+    let x9 = #(logic true & true);
+    let xa = #(logic false = true);
+    let xb = #(logic false = false);
+    let xc = #(logic true);
+    let xd = #(logic ! true);
+    let xe = #(logic true = (false ^ true));
+    let xf = #(logic (false | (! false)) | ((true = true) & (! false)));
+  }
+  assert_eq!(x1, true);
+  assert_eq!(x2, false);
+  assert_eq!(x3, true);
+  assert_eq!(x4, true);
+  assert_eq!(x5, true);
+  assert_eq!(x6, true);
+  assert_eq!(x7, false);
+  assert_eq!(x8, false);
+  assert_eq!(x9, true);
+  assert_eq!(xa, false);
+  assert_eq!(xb, true);
+  assert_eq!(xc, true);
+  assert_eq!(xd, false);
+  assert_eq!(xe, true);
+  assert_eq!(xf, true);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

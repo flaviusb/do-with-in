@@ -857,7 +857,7 @@ pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Va
         let real_lit = syn::parse_str::<syn::Lit>(&lit.clone().to_string());
         match real_lit {
           Ok(syn::Lit::Str(it)) => output.extend(TokenStream2::from(TokenTree2::Ident(proc_macro2::Ident::new(&it.value(), lit.span())))),
-          Ok(x)            => return (v, quote!{compiler_error!{ "Expected a string." }}.into()),
+          Ok(x)            => return (v, quote!{compile_error!{ "Expected a string." }}.into()),
           Err(err)         => return (v, err.to_compile_error()),
         }
       },
@@ -1187,7 +1187,7 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
           TokenTree2::Ident(x) if x.to_string() == "false" => false,
           x => {
             let msg = format!{"Expected true or false on the lhs of a logic expression; got {:?}.", x};
-            return (v, quote!{compiler_error!{ #msg }});
+            return (v, quote!{compile_error!{ #msg }});
           },
         });
       },
@@ -1209,7 +1209,7 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               },
               x => {
                 let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
-                return (v, quote!{compiler_error!{ #msg }});
+                return (v, quote!{compile_error!{ #msg }});
               },
             }
           },
@@ -1227,14 +1227,14 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
                   Some(TokenTree2::Ident(x)) if x.to_string() == "false" => false,
                   x => {
                     let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
-                    return (v, quote!{compiler_error!{ #msg }});
+                    return (v, quote!{compile_error!{ #msg }});
                   },
                 };
                 out
               },
               x => {
                 let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
-                return (v, quote!{compiler_error!{ #msg }});
+                return (v, quote!{compile_error!{ #msg }});
               },
             };
             let out = match op {
@@ -1252,7 +1252,7 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               },
               x => {
                 let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
-                return (v, quote!{compiler_error!{ #msg }});
+                return (v, quote!{compile_error!{ #msg }});
               },
             };
             return (v, quote!{#out});
@@ -1260,8 +1260,17 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
         }
       },
     }
-  }
-  todo!()
+  };
+  let out = match left {
+    None => {
+      let msg = format!{"Missed a turn somewhere; left = {:?}, operator = {:?}, t = {:?} .", left, operator, t};
+      quote!{compile_error!{ #msg }}
+    },
+    Some(x) => {
+      quote!{#x}
+    },
+  };
+  (v, out)
 }
 fn logicInternalNum<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   todo!()
@@ -1281,7 +1290,7 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
         Some(TokenTree2::Ident(x)) if x.to_string() == "false" => (v, quote!{ true }),
         x => {
           let msg = format!{"Expected a boolean in a not clause, got {:?}", x};
-          (v, quote!{compiler_error!{ #msg }})
+          (v, quote!{compile_error!{ #msg }})
         },
       };
     },
@@ -1614,6 +1623,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("concat"), ((Box::new(&concatHandler), None)));
   m.insert(String::from("string_to_ident"), ((Box::new(&string_to_identHandler), None)));
   m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), None)));
+  m.insert(String::from("logic"), ((Box::new(&logicHandler), None)));
   m.insert(String::from("fn"), ((Box::new(&fnHandler), None)));
   m.insert(String::from("quote"), ((Box::new(&quote), None)));
   m.insert(String::from("unquote"), ((Box::new(&unquote), None)));
