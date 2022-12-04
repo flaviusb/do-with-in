@@ -135,6 +135,24 @@ fn mumble_test() {
   assert_eq!(foo_4(4), 12);
 }
 
+#[test]
+fn quote_test() {
+  do_with_in!{
+    sigil: ~
+    escaping_style: Double
+    do
+      ~(let
+        thing = {~(quote ~x + ~y)}
+        )
+      ~(let
+        x = {3}
+        y = {4}
+        )
+      let z = ~(run ~(unquote ~thing));
+  }
+  assert_eq!(z, 7);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

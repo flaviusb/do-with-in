@@ -29,6 +29,18 @@ pub enum Sigil {
   Hash,
   Tilde,
 }
+use std::fmt;
+impl fmt::Display for Sigil {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let out = match self {
+      Sigil::Dollar  => "$",
+      Sigil::Percent => "%",
+      Sigil::Hash    => "#",
+      Sigil::Tilde   => "~",
+    };
+    write!(f, "{}", out)
+  }
+}
 use quote::TokenStreamExt;
 impl ToTokens for Sigil {
   fn to_tokens(&self, tokens: &mut TokenStream2) {
@@ -113,6 +125,22 @@ macro_rules! check_token {
       }
     } else {
       return Err($err);
+    }
+  };
+}
+
+macro_rules! check_token_ret {
+  ($vars: expr, $y:pat, $z:expr, $err:literal, $v:expr, $err2: literal) => {
+    if let $y = $z {
+      if $v {
+        ()
+      } else {
+        //let msg = $err2;
+        return ($vars, quote!{compile_error!{ $err2 }}.into());
+      }
+    } else {
+        //let msg = $err;
+        return ($vars, quote!{compile_error!{ $err }}.into());
     }
   };
 }
@@ -600,6 +628,24 @@ impl<T: StartMarker + Clone> Parse for Configuration<T> {
             base_config.sigil = Sigil::Tilde;
           }
         },
+        "escaping_style" => {
+          input.parse::<Token![:]>()?;
+          let es = input.parse::<Ident>().expect("Double, Backslash, or None expected.").to_string();
+          match es.as_str() {
+            "Double" => {
+              base_config.escaping_style = Escaping::Double;
+            },
+            "Backslash" => {
+              base_config.escaping_style = Escaping::Backslash;
+            },
+            "None" => {
+              base_config.escaping_style = Escaping::None;
+            },
+            x => {
+              return Err(err_pos.error(format!("Bad escaping_style within configuration section; found {} when Double, Backslash, or None expected.", x)));
+            },
+          };
+        },
         a => {return Err(err_pos.error(format!("Bad configuration section; found {} when sigil or end of prelude expected", a)));},
       };
     }
@@ -1066,6 +1112,16 @@ pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, da
   }
 }
  
+pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut temp = t.into_iter();
+  temp.next();
+  let mut code = TokenStream2::new();
+  code.extend(temp);
+  let in_it = do_with_in_explicit(code, c.clone(), v.clone());
+  let out = do_with_in_explicit(in_it, c.clone(), v.clone());
+  (v, out)
+}
+// TODO: Remeber to check for whether 'quote' ends up stacking up due to everything inside the $(...) being passed through the t
 pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let out = match c.sigil {
     Sigil::Dollar  => quote!{ $(quote #t) },
@@ -1077,7 +1133,37 @@ pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:
 }
 
 pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
-  todo!();
+  let mut out: TokenStream2 = quote!{compile_error!{"Nothing here."}}.into();
+  let sig_char = format!("{}", c.sigil).pop().expect("Expected Sigil to have a character.");
+  let mut stream = t.into_iter();
+  check_token_ret!(v, Some(TokenTree2::Ident(uq)), stream.next(), "Expected 'unquote' to be the name of the handler called.", uq.to_string() == "unquote", "Expected 'unquote' to be the name of the handler called.");
+  let mut temp = TokenStream2::new();
+  temp.extend(stream);
+  let mut as_run = do_with_in_explicit(temp, c.clone(), v.clone());
+  let mut stream = as_run.into_iter();
+  check_token_ret!(v, Some(TokenTree2::Punct(sig)), stream.next(), "Expected a quote.", sig.as_char() == sig_char, "Expected a quote.");
+  let tc = stream.next();
+  if let Some(TokenTree2::Group(the_call)) = tc.clone() {
+    let mut inner_stream = the_call.stream().into_iter();
+    check_token_ret!(v, Some(TokenTree2::Ident(q)), inner_stream.next(), "Expected 'quote'.", q.to_string() == "quote", "Expected 'quote'.");
+    out = TokenStream2::new();
+    out.extend(inner_stream);
+  } else {
+    let msg = format!("Expected a call body, got {:?}.", tc);
+    out = quote!{compile_error!{ #msg }}.into();
+  }
+  /*
+  if let Some(TokenTree2::Punct(p)) = tok.clone() {
+    let p_c = p.as_char();
+    if p_c == sig_char {
+    } else {
+      let msg = format!("Expected {}, got {}, inside unquote.", sig_char, p_c);
+      out = quote!{compile_error!{ #msg }}.into();
+    }
+  } else {
+    let msg = format!("Expected {}, got {:?}, inside unquote.", sig_char, tok);
+    out = quote!{compile_error!{ #msg }}.into();
+  }*/
   (v, out)
 }
 
@@ -1372,6 +1458,11 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("string_to_ident"), ((Box::new(&string_to_identHandler), None)));
   m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), None)));
   m.insert(String::from("fn"), ((Box::new(&fnHandler), None)));
+  m.insert(String::from("quote"), ((Box::new(&quote), None)));
+  m.insert(String::from("unquote"), ((Box::new(&unquote), None)));
+  m.insert(String::from("escape"), ((Box::new(&escape), None)));
+  m.insert(String::from("unescape"), ((Box::new(&unescape), None)));
+  m.insert(String::from("run"), ((Box::new(&run), None)));
   m
 }
 
