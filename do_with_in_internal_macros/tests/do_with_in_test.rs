@@ -186,6 +186,10 @@ fn basic_logic_test() {
   do_with_in!{
     sigil: #
     do
+    #(var
+      y = {false}
+      z = {#(logic #y ^ true)}
+    )
     let x1 = #(logic false | true);
     let x2 = #(logic false | false);
     let x3 = #(logic (! false) | false);
@@ -201,6 +205,8 @@ fn basic_logic_test() {
     let xd = #(logic ! true);
     let xe = #(logic true = (false ^ true));
     let xf = #(logic (false | (! false)) | ((true = true) & (! false)));
+    let xy = #(logic ! #y);
+    let xz = #(logic (#y | (! #z)) & (#y = #z));
   }
   assert_eq!(x1, true);
   assert_eq!(x2, false);
@@ -217,6 +223,8 @@ fn basic_logic_test() {
   assert_eq!(xd, false);
   assert_eq!(xe, true);
   assert_eq!(xf, true);
+  assert_eq!(xy, true);
+  assert_eq!(xz, false);
 }
 
 /*#[test]

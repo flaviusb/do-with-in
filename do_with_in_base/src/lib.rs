@@ -1277,6 +1277,7 @@ fn logicInternalNum<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
 }
 
 fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let t = do_with_in_explicit(t, c.clone(), v.clone());
   // We check whether it is a number of a bool, and split which one at that point
   let mut to_check = t.clone().into_iter();
   match to_check.next() {
