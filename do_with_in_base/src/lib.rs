@@ -1168,6 +1168,7 @@ pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, dat
   (v, out)
 }
 
+#[derive(Debug,Clone)]
 enum LogicBoolOp {
   And,
   Or,
@@ -1190,7 +1191,7 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
           },
         });
       },
-      Some(x) => {
+      Some(inner_left) => {
         match operator {
           None => {
             match token.clone() {
@@ -1200,10 +1201,62 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               TokenTree2::Punct(x) if x.as_char() == '|' => {
                 operator = Some(LogicBoolOp::Or);
               },
-              _ => {todo!()},
+              TokenTree2::Punct(x) if x.as_char() == '=' => {
+                operator = Some(LogicBoolOp::Equals);
+              },
+              TokenTree2::Punct(x) if x.as_char() == '^' => {
+                operator = Some(LogicBoolOp::NotEquals);
+              },
+              x => {
+                let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
+                return (v, quote!{compiler_error!{ #msg }});
+              },
             }
           },
-          _ => {todo!()},
+          Some(op) => {
+            // token is now the rhs
+            let right = match token {
+              TokenTree2::Ident(x) if x.to_string() == "true"  => true,
+              TokenTree2::Ident(x) if x.to_string() == "false" => false,
+              TokenTree2::Group(inner) => {
+                let mut rhs = TokenStream2::new();
+                rhs.extend(inner.stream());
+                let (_, it) = logicInternal(c.clone(), v.clone(), data.clone(), rhs);
+                let out = match it.into_iter().next() {
+                  Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => true,
+                  Some(TokenTree2::Ident(x)) if x.to_string() == "false" => false,
+                  x => {
+                    let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
+                    return (v, quote!{compiler_error!{ #msg }});
+                  },
+                };
+                out
+              },
+              x => {
+                let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
+                return (v, quote!{compiler_error!{ #msg }});
+              },
+            };
+            let out = match op {
+              LogicBoolOp::And => {
+                inner_left & right
+              },
+              LogicBoolOp::Or => {
+                inner_left | right
+              },
+              LogicBoolOp::Equals => {
+                inner_left == right
+              },
+              LogicBoolOp::NotEquals => {
+                inner_left != right
+              },
+              x => {
+                let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
+                return (v, quote!{compiler_error!{ #msg }});
+              },
+            };
+            return (v, quote!{#out});
+          },
         }
       },
     }
