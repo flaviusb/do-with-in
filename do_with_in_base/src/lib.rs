@@ -1178,6 +1178,36 @@ enum LogicBoolOp {
 fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut left: Option<bool> = None;
   let mut operator: Option<LogicBoolOp> = None;
+  for token in t.clone().into_iter() {
+    match left {
+      None => {
+        left = Some(match token.clone() {
+          TokenTree2::Ident(x) if x.to_string() == "true" =>  true,
+          TokenTree2::Ident(x) if x.to_string() == "false" => false,
+          x => {
+            let msg = format!{"Expected true or false on the lhs of a logic expression; got {:?}.", x};
+            return (v, quote!{compiler_error!{ #msg }});
+          },
+        });
+      },
+      Some(x) => {
+        match operator {
+          None => {
+            match token.clone() {
+              TokenTree2::Punct(x) if x.as_char() == '&' => {
+                operator = Some(LogicBoolOp::And);
+              },
+              TokenTree2::Punct(x) if x.as_char() == '|' => {
+                operator = Some(LogicBoolOp::Or);
+              },
+              _ => {todo!()},
+            }
+          },
+          _ => {todo!()},
+        }
+      },
+    }
+  }
   todo!()
 }
 fn logicInternalNum<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
