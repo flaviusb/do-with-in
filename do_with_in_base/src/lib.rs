@@ -903,7 +903,7 @@ enum Operator {
   Division,
 }
 
-fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N>>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
   let mut left: Option<N> = None;
   let mut operator: Option<Operator> = None;
   for token in t.clone().into_iter() {
@@ -1272,7 +1272,29 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   };
   (v, out)
 }
-fn logicInternalNum<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+
+enum NumOp {
+  Lt,
+  Le,
+  Gt,
+  Ge,
+  Equal,
+  NotEqual,
+}
+
+fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> (Variables<T>, TokenStream2) {
+  let mut left: Option<N> = None;
+  let mut op: Option<NumOp> = None;
+  let mut stream = t.into_iter();
+  match stream.next() {
+    None => {
+      todo!();
+    },
+    Some(TokenTree2::Literal(x)) => {
+      todo!();
+    },
+    Some(_) => todo!(),
+  };
   todo!()
 }
 
@@ -1296,7 +1318,25 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
       };
     },
     Some(TokenTree2::Ident(x)) if (x.to_string() == "true") || (x.to_string() == "false") => logicInternalBool(c, v, data, t),
-    Some(TokenTree2::Literal(x)) => logicInternalNum(c, v, data, t),
+    Some(TokenTree2::Ident(x)) => {
+      match x.to_string().as_str() {
+        "i8"  => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i8) },
+        "u8"  => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u8) },
+        "i16" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i16) },
+        "u16" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u16) },
+        "i32" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i32) },
+        "u32" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u32) },
+        "i64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i64) },
+        "u64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u64) },
+        "f32" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0.0f32) },
+        "f64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0.0f64) },
+        y => {
+          let msg = format!("Expected true, false, a literal number, or a numeric type specifier; got {}.", y);
+          return (v, quote!{compile_error!{ #msg }}.into());
+        }
+      }
+    }
+    Some(TokenTree2::Literal(x)) => logicInternalNum(c, v, data, t, 0i128),
     Some(TokenTree2::Group(x)) => {
       let mut inner = TokenStream2::new();
       inner.extend(x.stream());
@@ -1318,7 +1358,7 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
           let mut skip_first = t.into_iter();
           skip_first.next();
           new_stream.extend(skip_first);
-          logicInternalNum(c, v, data, new_stream)
+          logicInternalNum(c, v, data, new_stream, 0i128)
         },
         Some(x) => {
           let msg = format!("Problem in logic lhs; expected true, false, or a number, got {:?}.", x);
