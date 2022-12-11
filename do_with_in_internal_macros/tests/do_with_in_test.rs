@@ -22,16 +22,6 @@ fn conf_test3() {
 }
 
 #[test]
-fn handler_test1() {
-  do_with_in!(
-    sigil: $
-    do 
-      $(if foo then bar else baz);
-      println!("After an if");
-  );
-}
-
-#[test]
 fn let_nointerp_test1() {
   let mut x = 3;
   do_with_in!(
@@ -269,6 +259,23 @@ fn basic_logic_arithmetic_test() {
   assert_eq!(cd, true);
   assert_eq!(ce, false);
   assert_eq!(cf, true);
+}
+
+#[test]
+fn if_test() {
+  do_with_in!{
+    sigil: $
+    do
+      $(let
+        x = {3}
+        y = {4})
+
+      $(if {$(logic $x < $y)} {let a = $y * 5;} {assert_eq!(4, $y);})
+      $(if {$(logic $x > $y)} {let b = $y * 5;} {assert_eq!(4, $y);})
+      $(if {true}  {assert_eq!(true, true);}  {assert_eq!(true, false);})
+      $(if {false} {assert_eq!(true, false);} {assert_eq!(true, true);})
+  };
+  assert_eq!(a, 20);
 }
 
 /*#[test]

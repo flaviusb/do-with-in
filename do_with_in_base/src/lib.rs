@@ -794,7 +794,62 @@ pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler
 
 
 pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
-  (v, quote!{println!("todo");}.into())
+  let mut stream = t.into_iter();
+  stream.next();
+  let test = match stream.next() {
+    Some(TokenTree2::Group(x)) => {
+      let mut inner_test = TokenStream2::new();
+      inner_test.extend(x.stream());
+      let out = do_with_in_explicit(inner_test, c.clone(), v.clone());
+      out
+    },
+    x => {
+      let msg = format!("Expected a group in the test position of an if; got {:?}.", x);
+      return (v, quote!{compile_error!{ #msg }});
+    },
+  };
+  let if_branch = match stream.next() {
+    Some(TokenTree2::Group(x)) => {
+      let mut inner_test = TokenStream2::new();
+      inner_test.extend(x.stream());
+      inner_test
+    },
+    x => {
+      let msg = format!("Expected a group in the first branch position of an if; got {:?}.", x);
+      return (v, quote!{compile_error!{ #msg }});
+    },
+  };
+  let else_branch = match stream.next() {
+    Some(TokenTree2::Group(x)) => {
+      let mut inner_test = TokenStream2::new();
+      inner_test.extend(x.stream());
+      inner_test
+    },
+    None => TokenStream2::new(),
+    x => {
+      let msg = format!("Expected a group in the second branch position of an if; got {:?}.", x);
+      return (v, quote!{compile_error!{ #msg }});
+    },
+  };
+  let test_value = tokenstreamToBool(test);
+  if test_value {
+    let out = do_with_in_explicit(if_branch, c.clone(), v.clone());
+    (v, out)
+  } else {
+    let out = do_with_in_explicit(else_branch, c.clone(), v.clone());
+    (v, out)
+  }
+}
+
+fn tokenstreamToBool(stream: TokenStream2) -> bool {
+  match stream.into_iter().next() {
+    Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => true,
+    Some(TokenTree2::Ident(x)) if x.to_string() == "false" => false,
+    Some(TokenTree2::Group(x)) => tokenstreamToBool(x.stream()),
+    x => {
+      panic!("Bool expected, got {:?}.", x);
+    },
+  }
 }
 
 pub fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<String> {
