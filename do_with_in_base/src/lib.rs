@@ -1282,20 +1282,77 @@ enum NumOp {
   NotEqual,
 }
 
-fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> (Variables<T>, TokenStream2) {
-  let mut left: Option<N> = None;
-  let mut op: Option<NumOp> = None;
-  let mut stream = t.into_iter();
-  match stream.next() {
+fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq + std::str::FromStr>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> (Variables<T>, TokenStream2) where <N as std::str::FromStr>::Err: std::fmt::Debug {
+  let mut stream = t.into_iter().peekable();
+  let left: N = match stream.next() {
     None => {
       todo!();
     },
     Some(TokenTree2::Literal(x)) => {
-      todo!();
+      let lit = x.to_string();
+      let num: N = N::from_str(&lit).expect("Expected number.");
+      num
     },
     Some(_) => todo!(),
   };
-  todo!()
+  let op: NumOp = match stream.next() {
+    Some(TokenTree2::Punct(x)) if x.as_char() == '=' => {
+      NumOp::Equal
+    },
+    Some(TokenTree2::Punct(x)) if x.as_char() == '<' => {
+      if let Some(TokenTree2::Punct(eq)) = stream.peek() {
+        if eq.as_char() == '=' {
+          stream.next();
+          NumOp::Le
+        } else {
+          panic!("Blah!")
+        }
+      } else {
+        NumOp::Lt
+      }
+    },
+    Some(TokenTree2::Punct(x)) if x.as_char() == '>' => {
+      if let Some(TokenTree2::Punct(eq)) = stream.peek() {
+        if eq.as_char() == '=' {
+          stream.next();
+          NumOp::Ge
+        } else {
+          panic!("Blah!")
+        }
+      } else {
+        NumOp::Gt
+      }
+    },
+    Some(TokenTree2::Punct(x)) if x.as_char() == '!' => {
+      if let Some(TokenTree2::Punct(eq)) = stream.peek() {
+        if eq.as_char() == '=' {
+          stream.next();
+          NumOp::NotEqual
+        } else {
+          panic!("Blah!")
+        }
+      } else {
+        panic!("Blah!")
+      }
+    },
+    _ => todo!(),
+  };
+  let result = match stream.next() {
+    Some(TokenTree2::Literal(x)) => {
+      let lit = x.to_string();
+      let right: N = N::from_str(&lit).expect("Expected number.");
+      match op {
+        NumOp::Lt       => left <  right,
+        NumOp::Le       => left <= right,
+        NumOp::Gt       => left >  right,
+        NumOp::Ge       => left >= right,
+        NumOp::Equal    => left == right,
+        NumOp::NotEqual => left != right,
+      }
+    },
+    _ => todo!(),
+  };
+  (v, quote!{ #result })
 }
 
 fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {

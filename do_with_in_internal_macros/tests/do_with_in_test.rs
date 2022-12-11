@@ -227,6 +227,50 @@ fn basic_logic_test() {
   assert_eq!(xz, false);
 }
 
+#[test]
+fn basic_logic_arithmetic_test() {
+  do_with_in!{
+    sigil: #
+    do
+    let aa = #(logic 3 > 4);
+    let ab = #(logic 4 > 4);
+    let ac = #(logic 4 > 3);
+    let ad = #(logic 3 < 4);
+    let ae = #(logic 4 < 4);
+    let af = #(logic 4 < 3);
+    let ba = #(logic 3 >= 4);
+    let bb = #(logic 4 >= 4);
+    let bc = #(logic 4 >= 3);
+    let bd = #(logic 3 <= 4);
+    let be = #(logic 4 <= 4);
+    let bf = #(logic 4 <= 3);
+    let ca = #(logic 3 = 4);
+    let cb = #(logic 4 = 4);
+    let cc = #(logic 4 = 3);
+    let cd = #(logic 3 != 4);
+    let ce = #(logic 4 != 4);
+    let cf = #(logic 4 != 3);
+  }
+  assert_eq!(aa, false);
+  assert_eq!(ab, false);
+  assert_eq!(ac, true);
+  assert_eq!(ad, true);
+  assert_eq!(ae, false);
+  assert_eq!(af, false);
+  assert_eq!(ba, false);
+  assert_eq!(bb, true);
+  assert_eq!(bc, true);
+  assert_eq!(bd, true);
+  assert_eq!(be, true);
+  assert_eq!(bf, false);
+  assert_eq!(ca, false);
+  assert_eq!(cb, true);
+  assert_eq!(cc, false);
+  assert_eq!(cd, true);
+  assert_eq!(ce, false);
+  assert_eq!(cf, true);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
