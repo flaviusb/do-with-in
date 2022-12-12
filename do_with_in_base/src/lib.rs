@@ -1827,8 +1827,30 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         return (v, quote!{compile_error!{ #msg }});
       }
     },
-    "ith" => todo!(),
-    "slice" => todo!(),
+    "ith" => {
+      // Now we dispatch on the ith op
+      let sub_op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
+        x.to_string()
+      } else {
+        let msg = format!("Expected an array ith op; ... got {:?}", stream.peek());
+        return (v, quote!{compile_error!{ #msg }});
+      };
+      stream.next();
+
+      todo!();
+    },
+    "slice" => {
+      // Now we dispatch on the slice op
+      let sub_op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
+        x.to_string()
+      } else {
+        let msg = format!("Expected an array ith op; ... got {:?}", stream.peek());
+        return (v, quote!{compile_error!{ #msg }});
+      };
+      stream.next();
+
+      todo!();
+    },
     "concat" => todo!(),
     "mk" => todo!(),
     x => {
