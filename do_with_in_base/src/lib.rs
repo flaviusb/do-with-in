@@ -1844,7 +1844,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       let sub_op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
         x.to_string()
       } else {
-        let msg = format!("Expected an array ith op; ... got {:?}", stream.peek());
+        let msg = format!("Expected an array slice op; ... got {:?}", stream.peek());
         return (v, quote!{compile_error!{ #msg }});
       };
       stream.next();
