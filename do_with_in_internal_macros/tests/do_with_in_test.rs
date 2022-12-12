@@ -278,6 +278,38 @@ fn if_test() {
   assert_eq!(a, 20);
 }
 
+#[test]
+fn array_length_test() {
+  do_with_in!{
+    sigil: %
+    do
+    let i = %(array length {{1} {4 5} {pub fun foo() -> u8 { 4 } }});
+    let j = %(array length {{1}});
+    let k = %(array length {});
+    let l = %(array q length %(quote {{1} {4 5} {pub fun foo() -> u8 { 4 } }}));
+    let m = %(array q length %(quote {{1}}));
+    let n = %(array q length %(quote {}));
+    %(let
+      item         = {{3 4 5}}
+      item2        = {{3 4 5}}
+      arr          = { {{1 2 3} {4 5 6} {3} {}} }
+      quoted_array = {%(quote {{1 2 3} {4 5 6} {3} {}} )}
+    )
+    let o = %(array length %arr);
+    let p = %(array length { %item {wodi wed wowfn} %item2 });
+    let q = %(array q length %quoted_array);
+  };
+  assert_eq!(i, 3);
+  assert_eq!(j, 1);
+  assert_eq!(k, 0);
+  assert_eq!(l, 3);
+  assert_eq!(m, 1);
+  assert_eq!(n, 0);
+  assert_eq!(o, 4);
+  assert_eq!(p, 3);
+  assert_eq!(q, 4);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

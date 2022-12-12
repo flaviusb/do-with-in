@@ -1788,8 +1788,45 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
     let msg = format!("Expected an array op; ... got {:?}", stream.peek());
     return (v, quote!{compile_error!{ #msg }});
   };
+  stream.next();
   match op.as_str() {
-    "length" => todo!(),
+    "length" => {
+      let mut arr_base = if q {
+        let mut to_run_quoted_array = TokenStream2::new();
+        to_run_quoted_array.extend(stream);
+        let quoted_array = do_with_in_explicit(to_run_quoted_array, c.clone(), v.clone());
+        match uq(c.clone().sigil, quoted_array) {
+          Ok(x)  => {
+            match x.into_iter().next() {
+              Some(x) => x,
+              None => return (v, quote!{compile_error!{ "Argument list ended early; expected an array." }}),
+            }
+          },
+          Err(x) => {
+            return (v, quote!{compile_error!{ #x }});
+          },
+        }
+      } else {
+        let mut to_run = TokenStream2::new();
+        to_run.extend(stream);
+        let mut have_run = do_with_in_explicit(to_run, c.clone(), v.clone()).into_iter();
+        match have_run.next() {
+          Some(x) => x,
+          None => return (v, quote!{compile_error!{ "Argument list ended early; expected an array." }}),
+        }
+      };
+      if let TokenTree2::Group(arr) = arr_base {
+        let mut arr_stuff = arr.stream().into_iter();
+        let mut len = 0;
+        for _ in arr_stuff {
+          len += 1;
+        }
+        return (v, quote!{ #len });
+      } else {
+        let msg = format!("Expected an array to get the length of; ... got {:?}", arr_base);
+        return (v, quote!{compile_error!{ #msg }});
+      }
+    },
     "ith" => todo!(),
     "slice" => todo!(),
     "concat" => todo!(),
@@ -1801,6 +1838,28 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
   };
 
   (v, todo!())
+}
+
+fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static str> {
+  let mut stream = t.into_iter();
+  match s {
+    Sigil::Dollar  => check_token!(Some(TokenTree2::Punct(p)), stream.next(), "Expect a sigil (here, '$') to invoke quote.", p.as_char() == '$', "Expect a sigil (here, '$') to invoke quote."),
+    Sigil::Hash    => check_token!(Some(TokenTree2::Punct(p)), stream.next(), "Expect a sigil (here, '#') to invoke quote.", p.as_char() == '#', "Expect a sigil (here, '#') to invoke quote."),
+    Sigil::Percent => check_token!(Some(TokenTree2::Punct(p)), stream.next(), "Expect a sigil (here, '%') to invoke quote.", p.as_char() == '%', "Expect a sigil (here, '%') to invoke quote."),
+    Sigil::Tilde   => check_token!(Some(TokenTree2::Punct(p)), stream.next(), "Expect a sigil (here, '~') to invoke quote.", p.as_char() == '~', "Expect a sigil (here, '~') to invoke quote."),
+  };
+  match stream.next() {
+    Some(TokenTree2::Group(group)) => {
+      let mut inner_stream = group.stream().into_iter();
+      check_token!(Some(TokenTree2::Ident(qu)), inner_stream.next(), "Expecting 'quote'.", qu.to_string() == "quote", "Expecting 'quote'.");
+      let mut out = TokenStream2::new();
+      out.extend(inner_stream);
+      Ok(out)
+    },
+    x => {
+      Err("Expecting a group to actually be a quote.")
+    },
+  }
 }
 
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
