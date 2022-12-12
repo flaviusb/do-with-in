@@ -1768,6 +1768,41 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
   (variables, quote!{}.into())
 }
 
+pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut stream = t.into_iter().peekable();
+  check_token_ret!(v, Some(TokenTree2::Ident(name)), stream.next(), "Expected 'array'", name.to_string() == "array", "Expected 'array'");
+  let q = if let Some(TokenTree2::Ident(is_q)) = stream.peek() {
+    if is_q.to_string() == "q" {
+      stream.next();
+      true
+    } else {
+      false
+    }
+  } else {
+    false
+  };
+  // Now we dispatch on the array op
+  let op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
+    x.to_string()
+  } else {
+    let msg = format!("Expected an array op; ... got {:?}", stream.peek());
+    return (v, quote!{compile_error!{ #msg }});
+  };
+  match op.as_str() {
+    "length" => todo!(),
+    "ith" => todo!(),
+    "slice" => todo!(),
+    "concat" => todo!(),
+    "mk" => todo!(),
+    x => {
+      let msg = format!("Got an array operator I did not understand: {}", x);
+      return (v, quote!{compile_error!{ #msg }});
+    },
+  };
+
+  (v, todo!())
+}
+
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, (Box<&Handler<T>>, Option<TokenStream2>)> = HashMap::new();
   m.insert(String::from("if"), ((Box::new(&ifHandler), None)));
@@ -1783,6 +1818,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("escape"), ((Box::new(&escape), None)));
   m.insert(String::from("unescape"), ((Box::new(&unescape), None)));
   m.insert(String::from("run"), ((Box::new(&run), None)));
+  m.insert(String::from("array"), ((Box::new(&arrayHandler), None)));
   m
 }
 
