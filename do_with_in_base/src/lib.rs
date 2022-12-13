@@ -1768,6 +1768,35 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
   (variables, quote!{}.into())
 }
 
+macro_rules! q_or_unq {
+  ($stream: ident, $v: ident, $c: ident, $item: ident, $q: expr) => {
+        if $q {
+          match $c.sigil {
+            Sigil::Dollar  => check_token_ret!($v, TokenTree2::Punct(p), $item, "Expect a sigil (here, '$') to invoke quote.", p.as_char() == '$', "Expect a sigil (here, '$') to invoke quote."),
+            Sigil::Hash    => check_token_ret!($v, TokenTree2::Punct(p), $item, "Expect a sigil (here, '#') to invoke quote.", p.as_char() == '#', "Expect a sigil (here, '#') to invoke quote."),
+            Sigil::Percent => check_token_ret!($v, TokenTree2::Punct(p), $item, "Expect a sigil (here, '%') to invoke quote.", p.as_char() == '%', "Expect a sigil (here, '%') to invoke quote."),
+            Sigil::Tilde   => check_token_ret!($v, TokenTree2::Punct(p), $item, "Expect a sigil (here, '~') to invoke quote.", p.as_char() == '~', "Expect a sigil (here, '~') to invoke quote."),
+          };
+          match $stream.next() {
+            Some(TokenTree2::Group(group)) => {
+              let mut inner_stream = group.stream().into_iter();
+              check_token_ret!($v, Some(TokenTree2::Ident(qu)), inner_stream.next(), "Expecting 'quote'.", qu.to_string() == "quote", "Expecting 'quote'.");
+              if let Some(x) = inner_stream.next() {
+                x
+              } else {
+                return ($v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+              }
+            },
+            x => {
+              return ($v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+            },
+          }
+        } else {
+          $item
+        };
+  };
+}
+
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut stream = t.into_iter().peekable();
   check_token_ret!(v, Some(TokenTree2::Ident(name)), stream.next(), "Expected 'array'", name.to_string() == "array", "Expected 'array'");
@@ -1851,38 +1880,45 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
 
       todo!();
     },
-    "concat" => todo!(),
+    "concat" => {
+        let mut out: TokenStream2 = TokenStream2::new();
+        let mut to_run = TokenStream2::new();
+        to_run.extend(stream);
+        let mut stream = do_with_in_explicit(to_run, c.clone(), v.clone()).into_iter();
+        while let Some(item) = stream.next() {
+        let it = q_or_unq!(stream, v, c, item, q);
+        if let TokenTree2::Group(grp) = it.clone() {
+          // Now we go through each array 'array element'-wise
+          let mut grp_stream = grp.stream().into_iter();
+          while let Some(element) = grp_stream.next() {
+            check_token_ret!(v, TokenTree2::Group(_), element.clone(), "Expect item in array concat inner array to be an array element.", true, "Expect item in array concat inner array to be an array element.");
+            out.extend(TokenStream2::from(element));
+          }
+        } else {
+          let msg = format!("Expected an array element, got {:?}", it);
+          return (v, quote!{compile_error!{ #msg }});
+        }
+      }
+      if q {
+        let qout = match c.sigil {
+          Sigil::Dollar  => quote!{ $(quote [#out]) },
+          Sigil::Percent => quote!{ %(quote [#out]) },
+          Sigil::Hash    => quote!{ #(quote [#out]) },
+          Sigil::Tilde   => quote!{ ~(quote [#out]) },
+        };
+        return (v, qout);
+      } else {
+        return (v, quote!{ [#out] });
+      }
+    },
     "mk" => {
       // This is a simple thing; we just iterate through every argument,
       // check that it is a valid array element, and then put it in another group
       // There is a subtlety to whether we are in 'quoted' or not
       let mut out = TokenStream2::new();
       while let Some(item) = stream.next() {
-        let it = if q {
-          match c.sigil {
-            Sigil::Dollar  => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '$') to invoke quote.", p.as_char() == '$', "Expect a sigil (here, '$') to invoke quote."),
-            Sigil::Hash    => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '#') to invoke quote.", p.as_char() == '#', "Expect a sigil (here, '#') to invoke quote."),
-            Sigil::Percent => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '%') to invoke quote.", p.as_char() == '%', "Expect a sigil (here, '%') to invoke quote."),
-            Sigil::Tilde   => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '~') to invoke quote.", p.as_char() == '~', "Expect a sigil (here, '~') to invoke quote."),
-          };
-          match stream.next() {
-            Some(TokenTree2::Group(group)) => {
-              let mut inner_stream = group.stream().into_iter();
-              check_token_ret!(v, Some(TokenTree2::Ident(qu)), inner_stream.next(), "Expecting 'quote'.", qu.to_string() == "quote", "Expecting 'quote'.");
-              if let Some(x) = inner_stream.next() {
-                x
-              } else {
-                return (v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
-              }
-            },
-            x => {
-              return (v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
-            },
-          }
-        } else {
-          item
-        };
-        check_token_ret!(v, TokenTree2::Group(_), it.clone(), "Expect item in array mk to be a ", true, "...");
+        let it = q_or_unq!(stream, v, c, item, q);
+        check_token_ret!(v, TokenTree2::Group(_), it.clone(), "Expect item in array mk to be an array element.", true, "Expect item in array mk to be an array element.");
         out.extend(TokenStream2::from(it));
       }
       if q {

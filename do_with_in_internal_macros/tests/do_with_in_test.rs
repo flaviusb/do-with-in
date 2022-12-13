@@ -322,6 +322,26 @@ fn test_array_mk() {
   assert_eq!(quoted_out, 3);
 }
 
+#[test]
+fn test_array_concat() {
+  do_with_in!{
+    sigil: $
+    do
+    let out = $(array length $(array concat [{2}] [{23 1254 4} {& ^ %}]));
+    let quoted_out = $(array q length $(array q concat $(quote [{2}]) $(quote [{23 1254 4} {& ^ %}])));
+    $(let
+      out2 = { [{werftg wefg } { wf} {^#@} {"ewgfw" 'f'}] }
+      quoted_out2 = {$(quote [{werftg wefg } { wf} {^#@} {"ewgfw" 'f'}] )}
+    )
+    let out2 = $(array length $(array concat $out2 [{23 1254 4} {& ^ %}]));
+    let quoted_out2 = $(array q length $(array q concat $quoted_out2 $(quote [{23 1254 4} {& ^ %}])));
+  };
+  assert_eq!(out, 3);
+  assert_eq!(quoted_out, 3);
+  assert_eq!(out2, 6);
+  assert_eq!(quoted_out2, 6);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
