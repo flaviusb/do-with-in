@@ -11,6 +11,7 @@ homepage = "https://github.com/flaviusb/do-with-in"
 repository = "https://github.com/flaviusb/do-with-in"
 
 [lib]
+doctest = false
 
 [dependencies]
 quote = "1.0"
