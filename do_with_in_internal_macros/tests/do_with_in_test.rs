@@ -310,6 +310,18 @@ fn array_length_test() {
   assert_eq!(q, 4);
 }
 
+#[test]
+fn test_array_mk() {
+  do_with_in!{
+    sigil: $
+    do
+    let out = $(array length $(array mk {2} {23 1254 4} {& ^ %}));
+    let quoted_out = $(array q length $(array q mk $(quote {2}) $(quote {23 1254 4}) $(quote {& ^ %})));
+  };
+  assert_eq!(out, 3);
+  assert_eq!(quoted_out, 3);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

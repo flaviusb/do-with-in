@@ -1852,7 +1852,51 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       todo!();
     },
     "concat" => todo!(),
-    "mk" => todo!(),
+    "mk" => {
+      // This is a simple thing; we just iterate through every argument,
+      // check that it is a valid array element, and then put it in another group
+      // There is a subtlety to whether we are in 'quoted' or not
+      let mut out = TokenStream2::new();
+      while let Some(item) = stream.next() {
+        let it = if q {
+          match c.sigil {
+            Sigil::Dollar  => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '$') to invoke quote.", p.as_char() == '$', "Expect a sigil (here, '$') to invoke quote."),
+            Sigil::Hash    => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '#') to invoke quote.", p.as_char() == '#', "Expect a sigil (here, '#') to invoke quote."),
+            Sigil::Percent => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '%') to invoke quote.", p.as_char() == '%', "Expect a sigil (here, '%') to invoke quote."),
+            Sigil::Tilde   => check_token_ret!(v, TokenTree2::Punct(p), item, "Expect a sigil (here, '~') to invoke quote.", p.as_char() == '~', "Expect a sigil (here, '~') to invoke quote."),
+          };
+          match stream.next() {
+            Some(TokenTree2::Group(group)) => {
+              let mut inner_stream = group.stream().into_iter();
+              check_token_ret!(v, Some(TokenTree2::Ident(qu)), inner_stream.next(), "Expecting 'quote'.", qu.to_string() == "quote", "Expecting 'quote'.");
+              if let Some(x) = inner_stream.next() {
+                x
+              } else {
+                return (v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+              }
+            },
+            x => {
+              return (v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+            },
+          }
+        } else {
+          item
+        };
+        check_token_ret!(v, TokenTree2::Group(_), it.clone(), "Expect item in array mk to be a ", true, "...");
+        out.extend(TokenStream2::from(it));
+      }
+      if q {
+        let qout = match c.sigil {
+          Sigil::Dollar  => quote!{ $(quote [#out]) },
+          Sigil::Percent => quote!{ %(quote [#out]) },
+          Sigil::Hash    => quote!{ #(quote [#out]) },
+          Sigil::Tilde   => quote!{ ~(quote [#out]) },
+        };
+        return (v, qout);
+      } else {
+        return (v, quote!{ [#out] });
+      }
+    },
     x => {
       let msg = format!("Got an array operator I did not understand: {}", x);
       return (v, quote!{compile_error!{ #msg }});
