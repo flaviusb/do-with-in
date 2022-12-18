@@ -145,6 +145,45 @@ macro_rules! check_token_ret {
   };
 }
 
+
+enum Offset {
+  Forward(usize),
+  Reverse(usize),
+  Head,
+  Tail,
+}
+
+macro_rules! pull_offset {
+  ($stream:ident, $out: ident, $v:ident) => {
+    match $stream.next() {
+      Some(TokenTree2::Literal(lit)) => {
+        let the_lit = lit.to_string();
+        let $out = match syn::parse_str::<syn::LitInt>(&the_lit.clone()).map(|x| x.base10_parse::<i64>()).ok() {
+          Some(Ok(x)) if x >= 0 => Offset::Forward(x as usize),
+          Some(Ok(x)) => Offset::Reverse((x.abs() - 1) as usize),
+          _ => {
+            let msg = format!("Expected an offset, got {}", the_lit);
+            return ($v, quote!{ compile_error!{ #msg }});
+          },
+        };
+      },
+      Some(TokenTree2::Ident(it)) if it.to_string().as_str() == "head" => {
+        $out = Offset::Head;
+      },
+      Some(TokenTree2::Ident(it)) if it.to_string().as_str() == "tail" => {
+        $out = Offset::Tail;
+      },
+      Some(x) => {
+        let msg = format!("Expected an offset, got {:?}.", x);
+        return ($v, quote!{ compile_error!{ #msg }});
+      },
+      None => {
+        return ($v, quote!{ compile_error!{ "Expected an offset, but the argument list ended early." }});
+      },
+    }
+  };
+}
+
 #[derive(Debug,Clone)]
 struct ConfigurationChunks {
   allow_prelude: Option<bool>,
@@ -1865,8 +1904,13 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         return (v, quote!{compile_error!{ #msg }});
       };
       stream.next();
-
-      todo!();
+      let mut out = Offset::Head;
+      // We need to parse the $n. It can be a positive number (indexing from the start), a negative number (indexing backwards from the end),
+      // or the special tokens 'head' and 'tail'.
+      pull_offset!(stream, out, v);
+      match sub_op {
+        _ => todo!(),
+      }
     },
     "slice" => {
       // Now we dispatch on the slice op
@@ -1963,6 +2007,7 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
     },
   }
 }
+
 
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, (Box<&Handler<T>>, Option<TokenStream2>)> = HashMap::new();
