@@ -145,7 +145,7 @@ macro_rules! check_token_ret {
   };
 }
 
-
+#[derive(Debug, Clone, Copy)]
 enum Offset {
   Forward(usize),
   Reverse(usize),
@@ -158,7 +158,7 @@ macro_rules! pull_offset {
     match $stream.next() {
       Some(TokenTree2::Literal(lit)) => {
         let the_lit = lit.to_string();
-        let $out = match syn::parse_str::<syn::LitInt>(&the_lit.clone()).map(|x| x.base10_parse::<i64>()).ok() {
+        $out = match syn::parse_str::<syn::LitInt>(&the_lit.clone()).map(|x| x.base10_parse::<i64>()).ok() {
           Some(Ok(x)) if x >= 0 => Offset::Forward(x as usize),
           Some(Ok(x)) => Offset::Reverse((x.abs() - 1) as usize),
           _ => {
@@ -173,6 +173,28 @@ macro_rules! pull_offset {
       Some(TokenTree2::Ident(it)) if it.to_string().as_str() == "tail" => {
         $out = Offset::Tail;
       },
+      Some(TokenTree2::Punct(minus)) if minus.as_char() == '-' => {
+        // We have to do this because of a bit of Rust misdesign, as Rust represents negative numbers in a bad way
+        match $stream.next() {
+          Some(TokenTree2::Literal(lit)) => {
+            let the_lit = lit.to_string();
+            $out = match syn::parse_str::<syn::LitInt>(&the_lit.clone()).map(|x| x.base10_parse::<i64>()).ok() {
+              Some(Ok(x)) => Offset::Reverse((x.abs() - 1) as usize),
+              _ => {
+                let msg = format!("Expected an offset, got {}", the_lit);
+                return ($v, quote!{ compile_error!{ #msg }});
+              },
+            };
+          }
+          Some(x) => {
+            let msg = format!("Expected an offset, got -{:?}.", x);
+            return ($v, quote!{ compile_error!{ #msg }});
+          },
+          None => {
+            return ($v, quote!{ compile_error!{ "Expected an offset, but the argument list ended early (after a '-')." }});
+          },
+        }
+      },
       Some(x) => {
         let msg = format!("Expected an offset, got {:?}.", x);
         return ($v, quote!{ compile_error!{ #msg }});
@@ -180,6 +202,72 @@ macro_rules! pull_offset {
       None => {
         return ($v, quote!{ compile_error!{ "Expected an offset, but the argument list ended early." }});
       },
+    }
+  };
+}
+
+macro_rules! pull_array_to_vec {
+  ($stream_next:expr, $out:expr, $v:expr, $q:expr, $s:expr) => {
+    // $out must start as a mut Vec
+    // $q is a boolean, which is whether we are in quote mode
+    let mut unwrapped = if $q {
+      match $s {
+        Sigil::Dollar  => check_token_ret!($v, Some(TokenTree2::Punct(p)), $stream_next, "Expect a sigil (here, '$') to invoke quote.", p.as_char() == '$', "Expect a sigil (here, '$') to invoke quote."),
+        Sigil::Hash    => check_token_ret!($v, Some(TokenTree2::Punct(p)), $stream_next, "Expect a sigil (here, '#') to invoke quote.", p.as_char() == '#', "Expect a sigil (here, '#') to invoke quote."),
+        Sigil::Percent => check_token_ret!($v, Some(TokenTree2::Punct(p)), $stream_next, "Expect a sigil (here, '%') to invoke quote.", p.as_char() == '%', "Expect a sigil (here, '%') to invoke quote."),
+        Sigil::Tilde   => check_token_ret!($v, Some(TokenTree2::Punct(p)), $stream_next, "Expect a sigil (here, '~') to invoke quote.", p.as_char() == '~', "Expect a sigil (here, '~') to invoke quote."),
+      };
+      match $stream_next {
+        Some(TokenTree2::Group(grp)) => {
+          let mut inner = grp.stream().into_iter();
+          check_token_ret!($v, Some(TokenTree2::Ident(qu)), inner.next(), "Expecting 'quote'.", qu.to_string() == "quote", "Expecting 'quote'.");
+          match inner.next() {
+            Some(TokenTree2::Group(grp)) => {
+              grp.stream().into_iter()
+            },
+            Some(x) => {
+              let msg = format!("Expected a [...], got {:?}", x);
+              return ($v, quote!{ compile_error!{ #msg }});
+            },
+            None => {
+              return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+            },
+          }
+        },
+        Some(x) => {
+          let msg = format!("Expected a ([...]), got {:?}", x);
+          return ($v, quote!{ compile_error!{ #msg }});
+        },
+        None => {
+          return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+        },
+      }
+    } else {
+      match $stream_next {
+        Some(TokenTree2::Group(grp)) => {
+          grp.stream().into_iter()
+        },
+        Some(x) => {
+          let msg = format!("Expected a [...], got {:?}", x);
+          return ($v, quote!{ compile_error!{ #msg }});
+        },
+        None => {
+          return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+        },
+      }
+    };
+    for item in unwrapped {
+      match item {
+        TokenTree2::Group(grp) => {
+          let mut it = TokenStream2::new();
+          it.extend(grp.stream());
+          $out.push(it);
+        },
+        x => {
+          let msg = format!("Expected an array element (ie a {{...}}), got {:?}", x);
+          return ($v, quote!{ compile_error!{ #msg }});
+        },
+      }
     }
   };
 }
@@ -1896,6 +1984,10 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       }
     },
     "ith" => {
+      // First we run all the tokens
+      let mut to_run = TokenStream2::new();
+      to_run.extend(stream);
+      let mut stream = do_with_in_explicit(to_run, c.clone(), v.clone()).into_iter().peekable();
       // Now we dispatch on the ith op
       let sub_op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
         x.to_string()
@@ -1904,11 +1996,20 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         return (v, quote!{compile_error!{ #msg }});
       };
       stream.next();
-      let mut out = Offset::Head;
+      let mut offset = Offset::Head;
       // We need to parse the $n. It can be a positive number (indexing from the start), a negative number (indexing backwards from the end),
       // or the special tokens 'head' and 'tail'.
-      pull_offset!(stream, out, v);
-      match sub_op {
+      pull_offset!(stream, offset, v);
+      // Some of the sub_op's have different args from this point, so we have to match on the sub_op before we can continue
+      match sub_op.as_str() {
+        "get" => {
+          // Next arg is an array
+          let mut array: Vec<TokenStream2> = vec!();
+          pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+          let idx = convert_offset_to_usize(offset, array.len());
+          let out = array[idx].clone();
+          return (v, quote!{ #out });
+        },
         _ => todo!(),
       }
     },
@@ -1984,6 +2085,15 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
   };
 
   (v, todo!())
+}
+
+fn convert_offset_to_usize(offset: Offset, len: usize) -> usize {
+  match offset {
+    Offset::Forward(x) => x,
+    Offset::Reverse(x) => len - (x + 1),
+    Offset::Head => 0,
+    Offset::Tail => (len - 1),
+  }
 }
 
 fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static str> {

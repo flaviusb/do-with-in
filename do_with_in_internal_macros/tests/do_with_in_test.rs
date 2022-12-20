@@ -342,6 +342,39 @@ fn test_array_concat() {
   assert_eq!(quoted_out2, 6);
 }
 
+#[test]
+fn array_ith_get_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(let
+      out2 = { [{7} { wf} {^#@} {"ewgfw"}] }
+      quoted_out2 = {$(quote [{7} { wf} {^#@} {"ewgfw"}] )}
+    )
+    let wf = 1;
+    let out = $(array ith get head $(array concat $out2 [{23 1254 4} {& ^ %}]));
+    let out2 = $(array ith get 0 $(array concat $out2 [{23 1254 4} {& ^ %}]));
+    let out3 = $(array ith get 1 $(array concat $out2 [{23 1254 4} {& ^ %}]));
+    let out4 = $(array ith get tail $(array concat $out2 [{23 1254 4} {'i'}]));
+    let out5 = $(array ith get -3 $(array concat $out2 [{23 1254 4} {& ^ %}]));
+    let quoted_out = $(array q ith get head $(array q concat $quoted_out2 $(quote [{23 1254 4} {& ^ %}])));
+    let quoted_out2 = $(array q ith get 0 $(array q concat $quoted_out2 $(quote [{23 1254 4} {& ^ %}])));
+    let quoted_out3 = $(array q ith get 1 $(array q concat $quoted_out2 $(quote [{23 1254 4} {& ^ %}])));
+    let quoted_out4 = $(array q ith get tail $(array q concat $quoted_out2 $(quote [{23 1254 4} {'i'}])));
+    let quoted_out5 = $(array q ith get -3 $(array q concat $quoted_out2 $(quote [{23 1254 4} {& ^ %}])));
+  };
+  assert_eq!(out, 7);
+  assert_eq!(out2, 7);
+  assert_eq!(out3, 1);
+  assert_eq!(out4, 'i');
+  assert_eq!(out5, "ewgfw");
+  assert_eq!(quoted_out, 7);
+  assert_eq!(quoted_out2, 7);
+  assert_eq!(quoted_out3, 1);
+  assert_eq!(quoted_out4, 'i');
+  assert_eq!(quoted_out5, "ewgfw");
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
