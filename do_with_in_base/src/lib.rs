@@ -1025,6 +1025,15 @@ pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   return (v, output);
 }
 
+pub fn naiveStringifierHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut stream = do_with_in_explicit(t, c.clone(), v.clone()).into_iter();
+  stream.next();
+  let mut midput = TokenStream2::new();
+  midput.extend(stream);
+  let output = format!("{}", midput);
+  (v, quote!{ #output })
+}
+
 pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
@@ -2010,6 +2019,26 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           let out = array[idx].clone();
           return (v, quote!{ #out });
         },
+        "set" => {
+          // Next arg is an array element
+          let item = match stream.next() {
+            Some(x) => x,
+            None => return (v, quote!{compile_error!{ "Problem with array ith set???" }}),
+          };
+          let base_el = match q_or_unq!(stream, v, c, item, q) {
+            TokenTree2::Group(grp) => TokenStream2::from(grp.stream()),
+            _ => return (v, quote!{compile_error!{ "Expected a [...]. I am very confused." }}),
+          };
+          let mut array: Vec<TokenStream2> = vec!();
+          pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+          let idx = convert_offset_to_usize(offset, array.len());
+          array[idx] = base_el;
+          if q {
+            return (v, quote!{ $(quote [ #({#array})* ]) });
+          } else {
+            return (v, quote!{ [ #({#array})* ] });
+          }
+        },
         _ => todo!(),
       }
     },
@@ -2125,6 +2154,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("let"), ((Box::new(&letHandler), None)));
   m.insert(String::from("var"), ((Box::new(&varHandler), None)));
   m.insert(String::from("concat"), ((Box::new(&concatHandler), None)));
+  m.insert(String::from("naiveStringifier"), ((Box::new(&naiveStringifierHandler), None)));
   m.insert(String::from("string_to_ident"), ((Box::new(&string_to_identHandler), None)));
   m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), None)));
   m.insert(String::from("logic"), ((Box::new(&logicHandler), None)));

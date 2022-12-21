@@ -375,6 +375,46 @@ fn array_ith_get_test() {
   assert_eq!(quoted_out5, "ewgfw");
 }
 
+#[test]
+fn array_ith_set_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(var
+      out = { $(array ith set head [100] [{23 1254 4} {& ^ %}])}
+      out3 = { $(array ith set 1 [100] [{23 1254 4} {& ^ %}])}
+      out5 = { $(array ith set -1 [100] [{23 1254 4} {& ^ %}])}
+      quoted_out = { $(array q ith set head $(quote [100]) $(quote [{23 1254 4} {& ^ %}]))}
+      quoted_out3 = { $(array q ith set 1 $(quote [100]) $(quote [{23 1254 4} {& ^ %}]))}
+      quoted_out5 = { $(array q ith set -1 $(quote [100]) $(quote [{23 1254 4} {& ^ %}]))}
+    )
+    let out = $(naiveStringifier $out);
+    let out2 = $(array ith get 0 $(array concat $out [{23 1254 4} {& ^ %}]));
+    let out3 = $(array ith get 1 $(array concat $out3 [{23 1254 4} {& ^ %}]));
+    let out4 = $(array ith get tail $out5);
+    let out5 = $(array ith get tail $(array concat $out5 [{23 1254 4} {'i'}]));
+    let out6 = $(array ith get -3 $(array concat $out5 [{23 1254 4} {& ^ %}]));
+    let quoted_out = $(naiveStringifier $quoted_out);
+    let quoted_out2 = $(array q ith get 0 $(array q concat $quoted_out $(quote [{23 1254 4} {& ^ %}])));
+    let quoted_out3 = $(array q ith get 1 $(array q concat $quoted_out3 $(quote [{23 1254 4} {& ^ %}])));
+    let quoted_out4 = $(array q ith get tail $quoted_out5);
+    let quoted_out5 = $(array q ith get tail $(array q concat $quoted_out5 $(quote [{23 1254 4} {'i'}])));
+    let quoted_out6 = $(array q ith get -3 $(array q concat $quoted_out5 $(quote [{23 1254 4} {& ^ %}])));
+  };
+  assert_eq!(out, "[{ 100 } { & ^ % }]"); // This test may be flaky in future; naive stringification might change without warning
+  assert_eq!(out2, 100);
+  assert_eq!(out3, 100);
+  assert_eq!(out4, 100);
+  assert_eq!(out5, 'i');
+  assert_eq!(out6, 100);
+  assert_eq!(quoted_out, "$(quote [{ 100 } { & ^ % }])"); // This test may be flaky in future; naive stringification might change without warning
+  assert_eq!(quoted_out2, 100);
+  assert_eq!(quoted_out3, 100);
+  assert_eq!(quoted_out4, 100);
+  assert_eq!(quoted_out5, 'i');
+  assert_eq!(quoted_out6, 100);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
