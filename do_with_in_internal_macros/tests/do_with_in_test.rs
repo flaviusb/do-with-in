@@ -415,6 +415,27 @@ fn array_ith_set_test() {
   assert_eq!(quoted_out6, 100);
 }
 
+#[test]
+fn array_ith_remove_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(let
+      out2 = { [{7} { wf} {^#@} {"ewgfw"}] }
+      quoted_out2 = {$(quote [{7} { wf} {^#@} {"ewgfw"}] )}
+    )
+    let wf = 1;
+    let out = $(array ith get head $(array ith remove head $out2));
+    let out2 = $(array ith get 2 $(array ith remove 2 $out2));
+    let quoted_out = $(array q ith get head $(array q ith remove head $quoted_out2));
+    let quoted_out2 = $(array q ith get 2 $(array q ith remove 2 $quoted_out2));
+  };
+  assert_eq!(out, 1);
+  assert_eq!(out2, "ewgfw");
+  assert_eq!(quoted_out, 1);
+  assert_eq!(quoted_out2, "ewgfw");
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

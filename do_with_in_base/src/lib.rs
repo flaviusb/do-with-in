@@ -2039,6 +2039,18 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
             return (v, quote!{ [ #({#array})* ] });
           }
         },
+        "remove" => {
+          // Next arg is an array
+          let mut array: Vec<TokenStream2> = vec!();
+          pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+          let idx = convert_offset_to_usize(offset, array.len());
+          array.remove(idx);
+          if q {
+            return (v, quote!{ $(quote [ #({#array})* ]) });
+          } else {
+            return (v, quote!{ [ #({#array})* ] });
+          }
+        },
         _ => todo!(),
       }
     },
