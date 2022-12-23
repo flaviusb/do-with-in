@@ -443,7 +443,7 @@ fn array_ith_insert_test() {
     do
     $(var
       out2 = { $(array ith insert 2 {55} $(array ith insert head {'4'} [{7} { wf} {^#@} {"ewgfw"}])) }
-      quoted_out2 = {$(quote [{7} { wf} {^#@} {"ewgfw"}] )}
+      quoted_out2 = { $(array q ith insert 2 $(quote {55}) $(array q ith insert head $(quote {'4'}) $(quote [{7} { wf} {^#@} {"ewgfw"}]))) }
     )
     let wf = 1;
     let out = $(array ith get head $(array ith insert head {'4'} $out2));
@@ -453,8 +453,13 @@ fn array_ith_insert_test() {
     let out5 = $(array ith get tail $(array ith insert tail {8} $out2));
     let out6 = $(array ith get -2 $(array ith insert -2 {8} $out2));
     let out7 = $(array ith get tail $(array ith insert -2 {8} $out2));
-    let quoted_out = $(array q ith get head $(array q ith remove head $quoted_out2));
+    let quoted_out = $(array q ith get head $(array q ith insert head $(quote {'4'}) $quoted_out2));
     let quoted_out2 = $(array q ith get 2 $(array q ith remove 2 $quoted_out2));
+    let quoted_out3 = $(array q length $quoted_out2);
+    let quoted_out4 = $(array q length $(array q ith insert tail $(quote {8}) $quoted_out2));
+    let quoted_out5 = $(array q ith get tail $(array q ith insert tail $(quote {8}) $quoted_out2));
+    let quoted_out6 = $(array q ith get -2 $(array q ith insert -2 $(quote {8}) $quoted_out2));
+    let quoted_out7 = $(array q ith get tail $(array q ith insert -2 $(quote {8}) $quoted_out2));
   };
   assert_eq!(out, '4');
   assert_eq!(out2, 1);
@@ -463,8 +468,13 @@ fn array_ith_insert_test() {
   assert_eq!(out5, 8);
   assert_eq!(out6, 8);
   assert_eq!(out7, "ewgfw");
-  assert_eq!(quoted_out, 1);
-  assert_eq!(quoted_out2, "ewgfw");
+  assert_eq!(quoted_out, '4');
+  assert_eq!(quoted_out2, 1);
+  assert_eq!(quoted_out3, 6);
+  assert_eq!(quoted_out4, 7);
+  assert_eq!(quoted_out5, 8);
+  assert_eq!(quoted_out6, 8);
+  assert_eq!(quoted_out7, "ewgfw");
 }
 
 /*#[test]
