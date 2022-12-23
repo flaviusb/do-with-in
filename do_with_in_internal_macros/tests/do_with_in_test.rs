@@ -436,6 +436,37 @@ fn array_ith_remove_test() {
   assert_eq!(quoted_out2, "ewgfw");
 }
 
+#[test]
+fn array_ith_insert_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(var
+      out2 = { $(array ith insert 2 {55} $(array ith insert head {'4'} [{7} { wf} {^#@} {"ewgfw"}])) }
+      quoted_out2 = {$(quote [{7} { wf} {^#@} {"ewgfw"}] )}
+    )
+    let wf = 1;
+    let out = $(array ith get head $(array ith insert head {'4'} $out2));
+    let out2 = $(array ith get 2 $(array ith remove 2 $out2));
+    let out3 = $(array length $out2);
+    let out4 = $(array length $(array ith insert tail {8} $out2));
+    let out5 = $(array ith get tail $(array ith insert tail {8} $out2));
+    let out6 = $(array ith get -2 $(array ith insert -2 {8} $out2));
+    let out7 = $(array ith get tail $(array ith insert -2 {8} $out2));
+    let quoted_out = $(array q ith get head $(array q ith remove head $quoted_out2));
+    let quoted_out2 = $(array q ith get 2 $(array q ith remove 2 $quoted_out2));
+  };
+  assert_eq!(out, '4');
+  assert_eq!(out2, 1);
+  assert_eq!(out3, 6);
+  assert_eq!(out4, 7);
+  assert_eq!(out5, 8);
+  assert_eq!(out6, 8);
+  assert_eq!(out7, "ewgfw");
+  assert_eq!(quoted_out, 1);
+  assert_eq!(quoted_out2, "ewgfw");
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

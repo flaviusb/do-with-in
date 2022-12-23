@@ -2051,6 +2051,26 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
             return (v, quote!{ [ #({#array})* ] });
           }
         },
+        "insert" => {
+          // Next arg is an array element
+          let item = match stream.next() {
+            Some(x) => x,
+            None => return (v, quote!{compile_error!{ "Problem with array ith set???" }}),
+          };
+          let base_el = match q_or_unq!(stream, v, c, item, q) {
+            TokenTree2::Group(grp) => TokenStream2::from(grp.stream()),
+            _ => return (v, quote!{compile_error!{ "Expected a [...]. I am very confused." }}),
+          };
+          let mut array: Vec<TokenStream2> = vec!();
+          pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+          let idx = convert_offset_to_usize(offset, array.len() + 1); // We base the offset off of the *new* size, which means that measuring from the end *can* append through using tail or -1
+          array.insert(idx, base_el);
+          if q {
+            return (v, quote!{ $(quote [ #({#array})* ]) });
+          } else {
+            return (v, quote!{ [ #({#array})* ] });
+          }
+        },
         _ => todo!(),
       }
     },
