@@ -1321,7 +1321,48 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   }
   (v, output)
 }
-
+pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut temp = t.into_iter();
+  temp.next(); // Skip call
+  let c_out = match temp.next() {
+    Some(TokenTree2::Punct(p)) if p.as_char() == '$' => {
+      Configuration::<T> {
+        sigil: Sigil::Dollar,
+        ..c
+      }
+    },
+    Some(TokenTree2::Punct(p)) if p.as_char() == '%' => {
+      Configuration::<T> {
+        sigil: Sigil::Percent,
+        ..c
+      }
+    },
+    Some(TokenTree2::Punct(p)) if p.as_char() == '~' => {
+      Configuration::<T> {
+        sigil: Sigil::Tilde,
+        ..c
+      }
+    },
+    Some(TokenTree2::Punct(p)) if p.as_char() == '#' => {
+      Configuration::<T> {
+        sigil: Sigil::Hash,
+        ..c
+      }
+    },
+    Some(x) => {
+      let msg = format!("Expected a raw sigil ($, %, ~, #) for withSigil, got {:?}.", x);
+      return (v, quote!{compile_error!{ #msg }});
+    },
+    None => {
+      let msg = "Expected a raw sigil ($, %, ~, #) for withSigil (and then some code to run as the next argument), but the input stopped early.";
+      return (v, quote!{compile_error!{ #msg }});
+    },
+  };
+  let mut tokens = TokenStream2::new();
+  tokens.extend(temp);
+  let (v_out, out) = do_with_in_explicit2(tokens, c_out, v);
+  (v_out, out)
+}
 pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   todo!()
 }
@@ -2296,6 +2337,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("run"), ((Box::new(&run), None)));
   m.insert(String::from("array"), ((Box::new(&arrayHandler), None)));
   m.insert(String::from("import"), ((Box::new(&importHandler), None)));
+  m.insert(String::from("withSigil"), ((Box::new(&withSigilHandler), None)));
   m
 }
 

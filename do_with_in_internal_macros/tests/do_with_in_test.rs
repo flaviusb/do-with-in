@@ -477,6 +477,18 @@ fn array_ith_insert_test() {
   assert_eq!(quoted_out7, "ewgfw");
 }
 
+#[test]
+fn withSigil_test1() {
+  do_with_in!{
+    sigil: $
+    do
+    $(let a = {1})
+    let a = $(withSigil # #(arithmetic i8 #a + 3));
+    let b = $(withSigil ~ ~(arithmetic i8 (~a + 1) * ~(withSigil % %(arithmetic i8 4 - %a))));
+  }
+  assert_eq!(a, 4);
+  assert_eq!(b, 6);
+}
 
 #[test]
 fn import_test1() {
@@ -488,6 +500,21 @@ fn import_test1() {
     let $b = $a;
   };
   assert_eq!(c, 1);
+}
+
+#[test]
+fn import_test2() {
+  do_with_in!{
+    file: "do_with_in_internal_macros/tests/do_with_in_test.rs"
+    sigil: $
+    do
+    $(import "import.$")
+    $(withSigil % %(import "import.%"))
+    let $b = $a;
+    let $s = $r;
+  };
+  assert_eq!(c, 1);
+  assert_eq!(a, 1);
 }
 
 /*#[test]

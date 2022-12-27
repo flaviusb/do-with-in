@@ -1,0 +1,5 @@
+%(var
+  q = {%(arithmetic u64 %x)}
+  r = {%(array ith get %q %y)}
+  s = {%(array ith get %(arithmetic i64 0 - %q) %z)}
+  )
