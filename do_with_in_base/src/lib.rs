@@ -87,6 +87,7 @@ pub struct Configuration<Start: StartMarker> where Start: Clone {
   pub allow_prelude: bool,
   pub sigil: Sigil,
   pub escaping_style: Escaping,
+  pub file: Option<String>,
   pub rest: Option<TokenStream2>,
   _do: PhantomData<Start>,
 }
@@ -97,6 +98,10 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
     let p = c.allow_prelude;
     let s = c.sigil;
     let e = c.escaping_style;
+    let f = match c.file {
+      Some(x) => quote! { Some(quote!{#x}) },
+      None    => quote! { None },
+    };
     let rest = match c.rest {
       Some(x) => quote! { Some(quote!{#x}) },
       None    => quote! { None },
@@ -108,6 +113,7 @@ impl<T> ToTokens for Configuration<T> where T: StartMarker + Clone {
         allow_prelude: #p,
         sigil: #s,
         escaping_style: #e,
+        file: #f,
         rest: #rest,
         _do: PhantomData,
       }
@@ -277,6 +283,7 @@ struct ConfigurationChunks {
   allow_prelude: Option<bool>,
   sigil: Option<Sigil>,
   escaping_style: Option<Escaping>,
+  file: Option<Option<String>>,
   rest: Option<Option<TokenStream2>>,
   marker: Vec<syn::Ident>,
 }
@@ -285,6 +292,7 @@ enum Chunks {
   AllowPrelude,
   Sigil,
   EscapingStyle,
+  File,
   Rest,
   Do,
 }
@@ -364,7 +372,7 @@ macro_rules! unwrap_struct {
 impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
-    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, escaping_style: None, rest: None, marker: Vec::new(), };
+    let mut cc = ConfigurationChunks { allow_prelude: None, sigil: None, escaping_style: None, file: None, rest: None, marker: Vec::new(), };
     let mut iter = value.into_iter();
     let inner = unwrap_struct!("Configuration", iter, x, cc.marker.push(x));
     let mut progress = GetChunk::NothingYet;
@@ -377,6 +385,7 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
                 "allow_prelude"  => Chunks::AllowPrelude,
                 "sigil"          => Chunks::Sigil,
                 "escaping_style" => Chunks::EscapingStyle,
+                "file"           => Chunks::File,
                 "rest"           => Chunks::Rest,
                 "_do"            => Chunks::Do,
                 x                => return Err("Expecting allow_prelude, sigil, escaping_style, or rest."),
@@ -477,6 +486,24 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
             },
             x => return Err("Expected a chunk escaping style."),
           };
+        },
+        GetChunk::Equals(Chunks::File) => {
+          match thing {
+            TokenTree2::Ident(it) if it.to_string().as_str() == "None" => {
+              cc.file = Some(None);
+              progress = GetChunk::NothingYet;
+            },
+            TokenTree2::Literal(it) => {
+              match syn::parse_str::<syn::Lit>(&it.clone().to_string()) {
+                Ok(syn::Lit::Str(lit)) => {
+                  cc.file = Some(Some(lit.value()));
+                  progress = GetChunk::NothingYet;
+                },
+                _ => return Err("Expected either a filename in a string literal or None."),
+              };
+            },
+            _ => return Err("Expected either a filename in a string literal or None."),
+          }
         },
         GetChunk::Equals(Chunks::Rest) => {
           match thing {
@@ -603,6 +630,7 @@ impl<T> TryFrom<TokenStream2> for Configuration<T> where T: StartMarker + Clone 
       allow_prelude: cc.allow_prelude.ok_or("Needed 'allow_prelude'.")?,
       sigil: cc.sigil.ok_or("Needed 'sigil'.")?,
       escaping_style: cc.escaping_style.unwrap_or_default(),
+      file: cc.file.flatten(),
       rest: cc.rest.ok_or("Needed 'rest'.")?,
       _do: PhantomData,
     })
@@ -615,6 +643,7 @@ fn test_configuration_level_passing() {
     allow_prelude: true,
     sigil: Sigil::Tilde,
     escaping_style: Escaping::None,
+    file: None,
     rest: None,
     _do: PhantomData,
   };
@@ -622,18 +651,21 @@ fn test_configuration_level_passing() {
     allow_prelude: false,
     sigil: Sigil::Dollar,
     escaping_style: Escaping::Double,
+    file: None,
     rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
     _do: PhantomData,
   };
   let conf1ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: ~,
+    file: None,
     escaping_style: Escaping::None,
     rest: None,
   }}.try_into().unwrap();
   let conf1rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: true,
     sigil: Tilde,
+    file: None,
     escaping_style: Escaping::None,
     rest: None,
   }}.try_into().unwrap();
@@ -644,22 +676,26 @@ fn test_configuration_level_passing() {
     allow_prelude: true,
     sigil: #tilde,
     escaping_style: #escaping,
+    file: None,
     rest: None,
   }}.try_into().unwrap();
   let conf1rd: Configuration::<DoMarker> = quote!{#conf1l}.try_into().unwrap();
   let conf2ra: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: $,
+    file: None,
     rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
   let conf2rb: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: Sigil::Dollar,
+    file: None,
     rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
   let conf2rc: Configuration::<DoMarker> = quote!{Configuration::<DoMarker> {
     allow_prelude: false,
     sigil: #dollar,
+    file: None,
     rest: Some(quote!{foo bar baz(1, 2) () "bloop"}),
   }}.try_into().unwrap();
   let conf2rd: Configuration::<DoMarker> = quote!{#conf2l}.try_into().unwrap();
@@ -707,7 +743,7 @@ pub struct DoMarker;
 impl<T: StartMarker + Clone> Default for Configuration<T> {
   fn default() -> Self {
     //dbg!("Configuration<T>::default()");
-    Configuration { allow_prelude: true, rest: None, sigil: Default::default(), escaping_style: Default::default(), _do: PhantomData, }
+    Configuration { allow_prelude: true, rest: None, file: None, sigil: Default::default(), escaping_style: Default::default(), _do: PhantomData, }
   }
 }
 
@@ -754,6 +790,11 @@ impl<T: StartMarker + Clone> Parse for Configuration<T> {
             input.parse::<Token![~]>()?;
             base_config.sigil = Sigil::Tilde;
           }
+        },
+        "file" => {
+          input.parse::<Token![:]>()?;
+          let f = input.parse::<syn::LitStr>().expect("Quoted string containing a file path expected.").value();
+          base_config.file = Some(f);
         },
         "escaping_style" => {
           input.parse::<Token![:]>()?;
@@ -1646,6 +1687,63 @@ pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
   }
   (v, output)
 }
+use std::str::FromStr;
+use std::io;
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
+use std::ffi::OsStr;
+use std::fs::File;
+pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let base = match c.clone().file {
+    Some(x) => x,
+    None => file!().to_string(),
+  };
+  let mut path = match Path::new(&base).parent() {
+    Some(x) => x,
+    None => {
+      //let msg = format!("Expected a path segment (ie a string literal) for the import handler; got {
+      let msg = format!("'import' can only be invoked from a real file in a real directory; we could not make use of {}", file!());
+      return (v, quote!{compile_error{ #msg }});
+    },
+  }.to_path_buf();
+  let mut stream = t.into_iter();
+  stream.next(); // Skip 'include'
+  let mut cont = true;
+  while cont {
+    if let Some(TokenTree2::Literal(segment)) = stream.next() {
+      match syn::parse_str::<syn::LitStr>(&segment.clone().to_string()) {
+        Ok(x) => path.push(x.value()),
+        _ => panic!("oqwiefhawlkfhLQIPLE"),
+      };
+    } else {
+      cont = false;
+    }
+  }
+  let mut f = match File::open(path.clone()) {
+    Ok(s) => s,
+    Err(e) => {
+      let msg = format!("Failure to import; got error: {}\n Could not open file: {:?}", e, path.into_os_string());
+      return (v, quote!{compile_error{ #msg }});
+    },
+  };
+  let mut buffer = String::new();
+  match f.read_to_string(&mut buffer) {
+    Ok(_) => {},
+    Err(x) => {
+      panic!("Blah!");
+    },
+  };
+  let tokens = match TokenStream2::from_str(&buffer) {
+    Ok(x) => x,
+    Err(e) => panic!("oiwqehfwedlhwfe"),
+  };
+  let cnew = Configuration::<T> {
+    file: Some(path.display().to_string()),
+    ..c
+  };
+  let (vout, _) = do_with_in_explicit2(tokens, cnew, v.clone());
+  (vout, quote!{})
+}
 
 /*
  * ($fn name(_ foo, _ inner = {default}, bar = {wesf e2f}, named inner_name_2 = {,,, wefi 2we,f 2qwef}) { })
@@ -2197,6 +2295,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("unescape"), ((Box::new(&unescape), None)));
   m.insert(String::from("run"), ((Box::new(&run), None)));
   m.insert(String::from("array"), ((Box::new(&arrayHandler), None)));
+  m.insert(String::from("import"), ((Box::new(&importHandler), None)));
   m
 }
 
@@ -2212,6 +2311,10 @@ pub fn do_with_in_internal(t: TokenStream2) -> TokenStream2 {
       };
       // For now to make testing possible
       configuration.rest = None;
+      configuration.file = match configuration.clone().file {
+        Some(x) => Some(x),
+        None    => Some(file!().to_string()),
+      };
       do_with_in_explicit(TokenStream2::from(out), configuration, Variables::default()).into()
     },
     Err(it) =>  it.to_compile_error().into()  // we actually want to early exit here, not do: do_with_in_explicit(it.to_compile_error().into(), Configuration::<DoMarker>::default(), defaultHandlers()),
@@ -2221,6 +2324,14 @@ pub fn do_with_in_internal(t: TokenStream2) -> TokenStream2 {
 
 pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream2 {
   let mut output = TokenStream2::new();
+  let c = match c.clone().file {
+    Some(x) => c,
+    None =>
+      Configuration::<T> {
+        file: Some(file!().to_string()),
+        ..c
+      },
+  };
   let mut use_vars = v;
   //check for variables to insert
   //check for handlers to run
@@ -2292,6 +2403,89 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
     }
   }
   output.into()
+}
+
+pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> (Variables<'a, T>, TokenStream2) {
+  let mut output = TokenStream2::new();
+  let c = match c.clone().file {
+    Some(x) => c,
+    None =>
+      Configuration::<T> {
+        file: Some(file!().to_string()),
+        ..c
+      },
+  };
+  let mut use_vars = v;
+  //check for variables to insert
+  //check for handlers to run
+  //insert token
+  let token_char = match c.clone().sigil {
+    Sigil::Dollar  => '$',
+    Sigil::Percent => '%',
+    Sigil::Hash    => '#',
+    Sigil::Tilde   => '~',
+  };
+  let mut expecting_variable = false;
+  for token in t.into_iter() {
+    match &token {
+      TokenTree2::Punct(punct_char) if punct_char.spacing() == proc_macro2::Spacing::Alone && punct_char.as_char() == token_char => {
+        if expecting_variable {
+          expecting_variable = false;
+          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(punct_char.clone()));
+          output.extend(out.into_iter());
+        } else {
+          expecting_variable = true;
+        }
+      },
+      TokenTree2::Ident(ident) => {
+        if expecting_variable {
+          expecting_variable = false;
+          let var_name = ident.to_string();
+          // First we check for no interp, then interp
+          if let Some(replace) = use_vars.no_interp.get(&var_name) {
+            output.extend(replace.clone().into_iter());
+          } else if let Some(replace) = use_vars.with_interp.get(&var_name) {
+            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), use_vars.clone())));
+          }
+        } else {
+          output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
+        }
+      },
+      TokenTree2::Group(group) => {
+        if expecting_variable {
+          expecting_variable = false;
+          // Check whether the handler matches
+          let stream = group.stream();
+          if !stream.is_empty() {
+            let mut iter = stream.clone().into_iter();
+            if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
+              if let Some((handler, data)) = use_vars.clone().handlers.get(&first.to_string()) {
+                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), data.clone(), stream);
+                use_vars = new_vars;
+                output.extend(more_output);
+              }
+            }
+
+            //if let Some(handler) = v.handlers.get(
+          }
+        } else {
+          let delim = group.clone().delimiter();
+          output.extend(TokenStream2::from(TokenTree2::Group(
+                proc_macro2::Group::new(delim, do_with_in_explicit(group.stream(), c.clone(), use_vars.clone()))
+          )));
+        }
+      },
+      a => {
+        if expecting_variable {
+          expecting_variable = false;
+          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(proc_macro2::Punct::new(token_char.clone(), proc_macro2::Spacing::Alone)));
+          output.extend(out.into_iter());
+        }
+        output.extend(TokenStream2::from(a.clone()).into_iter());
+      },
+    }
+  }
+  (use_vars, output.into())
 }
 
 /*

@@ -48,7 +48,15 @@ impl Parse for Fatuous {
 
 #[proc_macro]
 pub fn do_with_in(t: TokenStream) -> TokenStream {
-  do_with_in_internal(t.into()).into()
+  //let s = proc_macro::Span::call_site();
+  //let f = s.source_file();
+  let f = file!();
+  let tempt: TokenStream2 = t.into();
+  let tt = quote!{
+    file: #f
+    #tempt
+  };
+  do_with_in_internal(tt).into()
 }
 
 
@@ -71,6 +79,9 @@ pub fn do_with_in_explicit_internal(t: TokenStream) -> TokenStream {
 // default_sigil=
 // sigil= // <- this also means you can't write 'sigil' in the prelude
 // by default, variables = Variables::default() + any modifications from handlers= and no_interp= and with_interp=, but if variables= is specified then you can't use any of those
+// Maybe
+//   variables=$expr -> let mut v = $expr;
+//   variables+=$expr -> let mut v = Variables::default(); let add = $expr; v.handlers += add.handlers; v.with_interp += add.with_interp; v.no_interp += add.with_interp;
 
 #[proc_macro_attribute]
 pub fn do_with_in_izer(attr: TokenStream, inner: TokenStream) -> TokenStream {
@@ -80,6 +91,7 @@ pub fn do_with_in_izer(attr: TokenStream, inner: TokenStream) -> TokenStream {
   let mut default_sigil = default_default.clone();
   let mut sigil = default_sigil.clone();
   let a: TokenStream2 = attr.into();
+  // Check for
   let b: TokenStream2 = inner.into();
   // default_sigil=, sigil=, has_prelude=, postlude_marker=, 
   let mut b_it = b.into_iter();
@@ -111,6 +123,10 @@ pub fn do_with_in_izer(attr: TokenStream, inner: TokenStream) -> TokenStream {
       #[proc_macro]
       pub fn #real_name(t: TokenStream) -> TokenStream {
         let tt: TokenStream2 = t.into();
+        // Create c and v
+        // let mut c = ...
+        // 
+        // let mut v = ...
         let #func_arg_name = do_with_in_base::do_with_in_explicit(c, v, tt).<TokenStream2>::into();
         #body
       }
