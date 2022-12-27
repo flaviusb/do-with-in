@@ -477,20 +477,16 @@ fn array_ith_insert_test() {
   assert_eq!(quoted_out7, "ewgfw");
 }
 
-macro_rules! wrap {
-  ($x:stmt) => {$x};
-}
 
 #[test]
 fn import_test1() {
-  wrap!(
-    do_with_in!{
+  do_with_in!{
     file: "do_with_in_internal_macros/tests/do_with_in_test.rs"
     sigil: $
     do
     $(import "import.$")
     let $b = $a;
-  });
+  };
   assert_eq!(c, 1);
 }
 
