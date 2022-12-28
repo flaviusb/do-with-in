@@ -23,6 +23,5 @@ use std::collections::HashMap;
 use std::fmt::format;
 use do_with_in_base::*;
 #[macro_use] use do_with_in_internal_macros::*;
-use do_with_in_unquote::*;
 
 
