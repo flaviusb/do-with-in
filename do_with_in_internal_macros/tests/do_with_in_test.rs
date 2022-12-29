@@ -517,6 +517,41 @@ fn import_test2() {
   assert_eq!(a, 1);
 }
 
+#[test]
+fn import_test3() {
+  do_with_in!{
+    sigil: $
+    do
+    $(import Base "do_with_in_internal_macros" "tests" "import.$")
+    
+    let $b = $a;
+  };
+  assert_eq!(c, 1);
+}
+
+#[test]
+fn import_test4() {
+  do_with_in!{
+    sigil: $
+    do
+    $(import Base "import_base_test.$")
+    
+    let $b = $a;
+  };
+  assert_eq!(c, 1);
+}
+
+#[test]
+fn import_test5() {
+  do_with_in!{
+    sigil: $
+    do
+    $(import Base "import_base_test2.$")
+    let $z = $c;
+  };
+  assert_eq!(twelve, 12);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

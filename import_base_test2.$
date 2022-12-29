@@ -1,0 +1,4 @@
+$(import "do_with_in_internal_macros" "tests" "import_2.$")
+
+$(var c = {$(arithmetic u8 $a * $b)})
+

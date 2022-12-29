@@ -1735,6 +1735,7 @@ use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 use std::fs::File;
 pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+  let mut reset = false;
   let base = match c.clone().file {
     Some(x) => x,
     None => file!().to_string(),
@@ -1751,15 +1752,31 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   stream.next(); // Skip 'include'
   let mut cont = true;
   while cont {
-    if let Some(TokenTree2::Literal(segment)) = stream.next() {
-      match syn::parse_str::<syn::LitStr>(&segment.clone().to_string()) {
-        Ok(x) => path.push(x.value()),
-        _ => panic!("oqwiefhawlkfhLQIPLE"),
-      };
-    } else {
-      cont = false;
-    }
+    match stream.next() {
+      Some(TokenTree2::Literal(segment)) => {
+        match syn::parse_str::<syn::LitStr>(&segment.clone().to_string()) {
+          Ok(x) => {
+            if reset {
+              path = Path::new(&x.value()).to_path_buf();
+              reset = false;
+            } else {
+              path.push(x.value());
+            }
+          },
+          _ => panic!("oqwiefhawlkfhLQIPLE"),
+        };
+      },
+      Some(TokenTree2::Ident(id)) if id.to_string() == "Base" => {
+        reset = true;
+      },
+      _ => {
+        cont = false;
+      },
+    };
   }
+  if reset {
+    return (v, quote!{compile_error!{ "Path finished with a 'Base'; we need an actual file reference." }});
+  };
   let mut f = match File::open(path.clone()) {
     Ok(s) => s,
     Err(e) => {
