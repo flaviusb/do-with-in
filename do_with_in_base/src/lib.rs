@@ -6,7 +6,7 @@ extern crate proc_macro2;
 use proc_macro::{TokenStream, TokenTree};
 use proc_macro2::TokenTree as TokenTree2;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use quote::ToTokens;
 use syn::{parse, Attribute, PathSegment, Result, Token};
 use syn::parse::{Parse, ParseStream, Parser, Peek};
@@ -2103,11 +2103,12 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
     false
   };
   // Now we dispatch on the array op
-  let op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
-    x.to_string()
+  let (op, op_span) = if let Some(TokenTree2::Ident(x)) = stream.peek() {
+    (x.to_string(), stream.peek().span())
   } else {
     let msg = format!("Expected an array op; ... got {:?}", stream.peek());
-    return (v, quote!{compile_error!{ #msg }});
+    let sp = stream.peek().span();
+    return (v, quote_spanned! {sp=> compile_error!{ #msg }});
   };
   stream.next();
   match op.as_str() {
@@ -2258,7 +2259,8 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           }
         } else {
           let msg = format!("Expected an array element, got {:?}", it);
-          return (v, quote!{compile_error!{ #msg }});
+          let sp = it.span();
+          return (v, quote_spanned!{sp=> compile_error!{ #msg }});
         }
       }
       if q {
@@ -2297,7 +2299,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
     },
     x => {
       let msg = format!("Got an array operator I did not understand: {}", x);
-      return (v, quote!{compile_error!{ #msg }});
+      return (v, quote_spanned!{op_span=> compile_error!{ #msg }});
     },
   };
 
