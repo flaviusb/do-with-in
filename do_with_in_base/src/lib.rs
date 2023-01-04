@@ -29,6 +29,13 @@ pub enum Sigil {
   Hash,
   Tilde,
 }
+
+#[derive(Debug,Clone)]
+pub struct Res {
+  pub to_insert: TokenStream2,
+  pub problem: Option<String>,
+}
+
 use std::fmt;
 impl fmt::Display for Sigil {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1361,7 +1368,7 @@ pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
   let mut tokens = TokenStream2::new();
   tokens.extend(temp);
   let (v_out, out) = do_with_in_explicit2(tokens, c_out, v);
-  (v_out, out)
+  (v_out, out.to_insert)
 }
 pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   todo!()
@@ -2384,89 +2391,11 @@ pub fn do_with_in_internal(t: TokenStream2) -> TokenStream2 {
 
 
 pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream2 {
-  let mut output = TokenStream2::new();
-  let c = match c.clone().file {
-    Some(x) => c,
-    None =>
-      Configuration::<T> {
-        file: Some(file!().to_string()),
-        ..c
-      },
-  };
-  let mut use_vars = v;
-  //check for variables to insert
-  //check for handlers to run
-  //insert token
-  let token_char = match c.clone().sigil {
-    Sigil::Dollar  => '$',
-    Sigil::Percent => '%',
-    Sigil::Hash    => '#',
-    Sigil::Tilde   => '~',
-  };
-  let mut expecting_variable = false;
-  for token in t.into_iter() {
-    match &token {
-      TokenTree2::Punct(punct_char) if punct_char.spacing() == proc_macro2::Spacing::Alone && punct_char.as_char() == token_char => {
-        if expecting_variable {
-          expecting_variable = false;
-          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(punct_char.clone()));
-          output.extend(out.into_iter());
-        } else {
-          expecting_variable = true;
-        }
-      },
-      TokenTree2::Ident(ident) => {
-        if expecting_variable {
-          expecting_variable = false;
-          let var_name = ident.to_string();
-          // First we check for no interp, then interp
-          if let Some(replace) = use_vars.no_interp.get(&var_name) {
-            output.extend(replace.clone().into_iter());
-          } else if let Some(replace) = use_vars.with_interp.get(&var_name) {
-            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), use_vars.clone())));
-          }
-        } else {
-          output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
-        }
-      },
-      TokenTree2::Group(group) => {
-        if expecting_variable {
-          expecting_variable = false;
-          // Check whether the handler matches
-          let stream = group.stream();
-          if !stream.is_empty() {
-            let mut iter = stream.clone().into_iter();
-            if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
-              if let Some((handler, data)) = use_vars.clone().handlers.get(&first.to_string()) {
-                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), data.clone(), stream);
-                use_vars = new_vars;
-                output.extend(more_output);
-              }
-            }
-
-            //if let Some(handler) = v.handlers.get(
-          }
-        } else {
-          let delim = group.clone().delimiter();
-          output.extend(TokenStream2::from(TokenTree2::Group(
-                proc_macro2::Group::new(delim, do_with_in_explicit(group.stream(), c.clone(), use_vars.clone()))
-          )));
-        }
-      },
-      a => {
-        if expecting_variable {
-          expecting_variable = false;
-          let out: TokenStream2 = TokenStream2::from(TokenTree2::Punct(proc_macro2::Punct::new(token_char.clone(), proc_macro2::Spacing::Alone)));
-          output.extend(out.into_iter());
-        }
-        output.extend(TokenStream2::from(a.clone()).into_iter());
-      },
-    }
-  }
-  output.into()
+  let (_, out) = do_with_in_explicit2(t, c, v);
+  out.to_insert
 }
 
-pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> (Variables<'a, T>, TokenStream2) {
+pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> (Variables<'a, T>, Res) {
   let mut output = TokenStream2::new();
   let c = match c.clone().file {
     Some(x) => c,
@@ -2507,6 +2436,10 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
             output.extend(replace.clone().into_iter());
           } else if let Some(replace) = use_vars.with_interp.get(&var_name) {
             output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), use_vars.clone())));
+          } else {
+            let msg = format!("No such variable: {} defined.", var_name);
+            let sp = ident.span();
+            return (use_vars, Res{ to_insert: quote_spanned! {sp=> compile_error!{ #msg }}, problem: Some(msg)});
           }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
@@ -2546,7 +2479,7 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
       },
     }
   }
-  (use_vars, output.into())
+  (use_vars, Res{ to_insert: output.into(), problem: None})
 }
 
 /*
