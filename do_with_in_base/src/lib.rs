@@ -1367,8 +1367,11 @@ pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
   };
   let mut tokens = TokenStream2::new();
   tokens.extend(temp);
-  let (v_out, out) = do_with_in_explicit2(tokens, c_out, v);
-  (v_out, out.to_insert)
+  let (v_out, out) = match do_with_in_explicit2(tokens, c_out, v.clone()) {
+    Ok((v1, o))  => (v1, o),
+    Err((v1, o)) => (v1, o),
+  };
+  (v_out, out)
 }
 pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
   todo!()
@@ -1756,7 +1759,7 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     },
   }.to_path_buf();
   let mut stream = t.into_iter();
-  stream.next(); // Skip 'include'
+  let anchor_span = stream.next().span(); // Skip 'include'
   let mut cont = true;
   while cont {
     match stream.next() {
@@ -1806,8 +1809,16 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     file: Some(path.display().to_string()),
     ..c
   };
-  let (vout, _) = do_with_in_explicit2(tokens, cnew, v.clone());
-  (vout, quote!{})
+  let mut thing = TokenStream2::new();
+  let (vout, out) = match do_with_in_explicit2(tokens, cnew, v.clone()) {
+    Ok((a, b)) => (a, b),
+    Err((a,b))     => {
+      thing.extend(b);
+      thing.extend(quote_spanned!{anchor_span=> compile_error!{"Problem encountered inside import."}});
+      (a, thing)
+    },
+  };
+  (vout, out)
 }
 
 /*
@@ -2391,11 +2402,17 @@ pub fn do_with_in_internal(t: TokenStream2) -> TokenStream2 {
 
 
 pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> TokenStream2 {
-  let (_, out) = do_with_in_explicit2(t, c, v);
-  out.to_insert
+  match do_with_in_explicit2(t, c, v) {
+    Ok((_, ts))  => ts,
+    Err((_, ts)) => ts,
+  }
 }
 
-pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> (Variables<'a, T>, Res) {
+type Thing<'a, T: StartMarker + Clone> = (Variables<'a, T>, TokenStream2);
+type StageResult<'a, T: StartMarker + Clone> = std::result::Result<Thing<'a, T>, Thing<'a, T>>;
+
+pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> StageResult<'a, T> {
+  let mut err = false;
   let mut output = TokenStream2::new();
   let c = match c.clone().file {
     Some(x) => c,
@@ -2439,7 +2456,8 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
           } else {
             let msg = format!("No such variable: {} defined.", var_name);
             let sp = ident.span();
-            return (use_vars, Res{ to_insert: quote_spanned! {sp=> compile_error!{ #msg }}, problem: Some(msg)});
+            output.extend(quote_spanned! {sp=> compile_error!{ #msg }});
+            err = true;
           }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
@@ -2479,7 +2497,11 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
       },
     }
   }
-  (use_vars, Res{ to_insert: output.into(), problem: None})
+  if err {
+    StageResult::Err((use_vars, output.into()))
+  } else {
+    StageResult::Ok((use_vars, output.into()))
+  }
 }
 
 /*
