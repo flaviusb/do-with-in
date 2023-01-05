@@ -1798,12 +1798,16 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   match f.read_to_string(&mut buffer) {
     Ok(_) => {},
     Err(x) => {
-      panic!("Blah!");
+      let msg = format!("Failure to import; got error: {}\n Could not read from file: {:?}", x, path.into_os_string());
+      return (v, quote!{compile_error{ #msg }});
     },
   };
   let tokens = match TokenStream2::from_str(&buffer) {
     Ok(x) => x,
-    Err(e) => panic!("oiwqehfwedlhwfe"),
+    Err(e) => {
+      let msg = format!("Failure to import; got error: {}\n Could not parse file: {:?}", e, path.into_os_string());
+      return (v, quote!{compile_error{ #msg }});
+    },
   };
   let cnew = Configuration::<T> {
     file: Some(path.display().to_string()),
@@ -1814,7 +1818,8 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     Ok((a, b)) => (a, b),
     Err((a,b))     => {
       thing.extend(b);
-      thing.extend(quote_spanned!{anchor_span=> compile_error!{"Problem encountered inside import."}});
+      let msg = format!("Problem encountered inside import {:?}.", path.into_os_string());
+      thing.extend(quote_spanned!{anchor_span=> compile_error!{ #msg }});
       (a, thing)
     },
   };
