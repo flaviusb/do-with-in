@@ -33,12 +33,24 @@ fn missing_variable() {
   assert_eq!(cmpl, cmpr);
 }
 
+use std::str::FromStr;
+use std::io;
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
+use std::ffi::OsStr;
+use std::fs::File;
+
 #[test]
 fn missing_variable_inside_import() {
+  let thing = "tests";
+  let mut file = Path::new(&thing).to_path_buf();
+  file.push("missing_variable.$");
+  let path = file.into_os_string();
   let mut c = Configuration::<DoMarker>::default();
   c.file = Some(file!().to_string());
   let v = Variables::<DoMarker>::default();
   let cmpl = format!("{}", do_with_in_explicit(quote!{$(import Base "tests" "missing_variable.$")}, c, v));
-  let cmpr = format!("{}", quote!{compile_error!{"No such variable: b defined."} compile_error!{"Problem encountered inside import."}});
+  let msg = format!("Problem encountered inside import {:?}.", path);
+  let cmpr = format!("{}", quote!{compile_error!{"No such variable: b defined."} compile_error!{ #msg }});
   assert_eq!(cmpl, cmpr);
 }
