@@ -1385,7 +1385,8 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
           },
           it => {
             let msg = format!("Expected number type (u64, i64, f64, etc), got {}.", it);
-            return Err((v, quote!{compile_error!{ #msg }}));
+            let sp = var_token.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         }
       },
