@@ -1218,7 +1218,43 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
     match left {
       None => {
         left = match token.clone() {
-          TokenTree2::Literal(lit) => Some(syn::parse_str::<syn::LitInt>(&lit.to_string())?.base10_parse::<N>()?),
+          TokenTree2::Literal(lit) => {
+            Some(match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
+              Ok(x) => match x.base10_parse::<N>() {
+                Ok(x)  => x,
+                Err(y) => {
+                  match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
+                    Ok(x)  => match x.base10_parse::<N>() {
+                      Ok(x)  => x,
+                      Err(y) => {
+                        let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                        return Err(syn::parse::Error::new_spanned(token, msg));
+                      },
+                    },
+                    Err(y) => {
+                      let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                      return Err(syn::parse::Error::new_spanned(token, msg));
+                    },
+                  }
+                },
+              },
+              Err(y) => {
+                match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
+                  Ok(x)  => match x.base10_parse::<N>() {
+                    Ok(x)  => x,
+                    Err(y) => {
+                      let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                      return Err(syn::parse::Error::new_spanned(token, msg));
+                    },
+                  },
+                  Err(y) => {
+                    let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                    return Err(syn::parse::Error::new_spanned(token, msg));
+                  },
+                }
+              },
+            })
+          },
           TokenTree2::Group(grp) => Some(arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?),
           it => {
             let msg = format!("Expected number, got {}", it);
@@ -1259,7 +1295,43 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
           },
           Some(op) => {
             let right = match token.clone() {
-              TokenTree2::Literal(lit) => syn::parse_str::<syn::LitInt>(&lit.to_string())?.base10_parse::<N>()?,
+              TokenTree2::Literal(lit) => {
+                match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
+                  Ok(x) => match x.base10_parse::<N>() {
+                    Ok(x)  => x,
+                    Err(y) => {
+                      match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
+                        Ok(x)  => match x.base10_parse::<N>() {
+                          Ok(x)  => x,
+                          Err(y) => {
+                            let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                            return Err(syn::parse::Error::new_spanned(token, msg));
+                          },
+                        },
+                        Err(y) => {
+                          let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      }
+                    },
+                  },
+                  Err(y) => {
+                    match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
+                      Ok(x)  => match x.base10_parse::<N>() {
+                        Ok(x)  => x,
+                        Err(y) => {
+                          let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      },
+                      Err(y) => {
+                        let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
+                        return Err(syn::parse::Error::new_spanned(token, msg));
+                      },
+                    }
+                  },
+                }
+              },
               TokenTree2::Group(grp) => arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?,
               it => {
                 let msg = format!("Expected number, got {}", it);
@@ -1664,7 +1736,14 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
     },
     Some(TokenTree2::Literal(x)) => {
       let lit = x.to_string();
-      let num: N = N::from_str(&lit).expect("Expected number.");
+      let num: N = match N::from_str(&lit) {
+        Ok(x)  => x,
+        Err(y) => {
+          let msg = format!("Expected number, got {} with error {:?}", lit, y);
+          let sp = x.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+        },
+      };
       num
     },
     Some(_) => todo!(),
