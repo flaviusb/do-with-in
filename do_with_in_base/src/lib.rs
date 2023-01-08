@@ -149,13 +149,49 @@ macro_rules! check_token_ret {
         ()
       } else {
         //let msg = $err2;
-        return ($vars, quote!{compile_error!{ $err2 }}.into());
+        return Err(($vars, quote!{compile_error!{ $err2 }}));
       }
     } else {
         //let msg = $err;
-        return ($vars, quote!{compile_error!{ $err }}.into());
+        return Err(($vars, quote!{compile_error!{ $err }}));
     }
   };
+  ($vars: expr, $sp: expr, $y:pat, $z:expr, $err:literal, $v:expr, $err2: literal) => {
+    if let $y = $z {
+      if $v {
+        ()
+      } else {
+        let sp = $sp.span();
+        //let msg = $err2;
+        return Err(($vars, quote_spanned!{sp=> compile_error!{ $err2 }}));
+      }
+    } else {
+        //let msg = $err;
+        return Err(($vars, quote!{compile_error!{ $err }}));
+    }
+  };
+  ($vars: expr, $sp_root:expr, $sp: expr, $y:pat, $z:expr, $err:literal, $v:expr, $err2: literal) => {
+    if let $y = $z {
+      if $v {
+        ()
+      } else {
+        let sp = $sp.span();
+        //let msg = $err2;
+        return Err(($vars, quote_spanned!{sp=> compile_error!{ $err2 }}));
+      }
+    } else {
+      let sp = $sp_root.span();
+      //let msg = $err;
+      return Err(($vars, quote_spanned!{sp=> compile_error!{ $err }}));
+    }
+  };
+}
+
+fn unwrap_to<T>(x: std::result::Result<T, T>) -> (T, bool) {
+  match x {
+    Ok(a)  => (a, true),
+    Err(a) => (a, false),
+  }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -167,7 +203,7 @@ enum Offset {
 }
 
 macro_rules! pull_offset {
-  ($stream:ident, $out: ident, $v:ident) => {
+  ($stream:ident, $anchor:expr, $out: ident, $v:ident) => {
     match $stream.next() {
       Some(TokenTree2::Literal(lit)) => {
         let the_lit = lit.to_string();
@@ -176,7 +212,8 @@ macro_rules! pull_offset {
           Some(Ok(x)) => Offset::Reverse((x.abs() - 1) as usize),
           _ => {
             let msg = format!("Expected an offset, got {}", the_lit);
-            return ($v, quote!{ compile_error!{ #msg }});
+            let sp = the_lit.span();
+            return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
           },
         };
       },
@@ -195,25 +232,30 @@ macro_rules! pull_offset {
               Some(Ok(x)) => Offset::Reverse((x.abs() - 1) as usize),
               _ => {
                 let msg = format!("Expected an offset, got {}", the_lit);
-                return ($v, quote!{ compile_error!{ #msg }});
+                let sp = the_lit.span();
+                return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
               },
             };
           }
           Some(x) => {
-            let msg = format!("Expected an offset, got -{:?}.", x);
-            return ($v, quote!{ compile_error!{ #msg }});
+            let msg = format!("Expected an offset, got -{}.", x);
+            let sp = x.span();
+            return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
           },
           None => {
-            return ($v, quote!{ compile_error!{ "Expected an offset, but the argument list ended early (after a '-')." }});
+            let sp = minus.span();
+            return Err(($v, quote_spanned!{sp=> compile_error!{ "Expected an offset, but the argument list ended early (after a '-')." }}));
           },
         }
       },
       Some(x) => {
-        let msg = format!("Expected an offset, got {:?}.", x);
-        return ($v, quote!{ compile_error!{ #msg }});
+        let msg = format!("Expected an offset, got {}.", x);
+        let sp = x.span();
+        return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
       },
       None => {
-        return ($v, quote!{ compile_error!{ "Expected an offset, but the argument list ended early." }});
+        let foo = $anchor;
+        return Err(($v, quote_spanned!{foo=> compile_error!{ "Expected an offset, but the argument list ended early." }}));
       },
     }
   };
@@ -239,20 +281,20 @@ macro_rules! pull_array_to_vec {
               grp.stream().into_iter()
             },
             Some(x) => {
-              let msg = format!("Expected a [...], got {:?}", x);
-              return ($v, quote!{ compile_error!{ #msg }});
+              let msg = format!("Expected a [...], got {}", x);
+              return Err(($v, quote!{ compile_error!{ #msg }}));
             },
             None => {
-              return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+              return Err(($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }}));
             },
           }
         },
         Some(x) => {
           let msg = format!("Expected a ([...]), got {:?}", x);
-          return ($v, quote!{ compile_error!{ #msg }});
+          return Err(($v, quote!{ compile_error!{ #msg }}));
         },
         None => {
-          return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+          return Err(($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }}));
         },
       }
     } else {
@@ -261,11 +303,11 @@ macro_rules! pull_array_to_vec {
           grp.stream().into_iter()
         },
         Some(x) => {
-          let msg = format!("Expected a [...], got {:?}", x);
-          return ($v, quote!{ compile_error!{ #msg }});
+          let msg = format!("Expected a [...], got {}", x);
+          return Err(($v, quote!{ compile_error!{ #msg }}));
         },
         None => {
-          return ($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }});
+          return Err(($v, quote!{ compile_error!{ "Expecting an array; argument list finished early." }}));
         },
       }
     };
@@ -278,7 +320,7 @@ macro_rules! pull_array_to_vec {
         },
         x => {
           let msg = format!("Expected an array element (ie a {{...}}), got {:?}", x);
-          return ($v, quote!{ compile_error!{ #msg }});
+          return Err(($v, quote!{ compile_error!{ #msg }}));
         },
       }
     }
@@ -964,23 +1006,39 @@ impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
   }
 }
 
-pub type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, Option<TokenStream2>, TokenStream2) -> (Variables<T>, TokenStream2);
+pub type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, Option<TokenStream2>, TokenStream2) -> StageResult<T>;
 pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler<T>>, Option<TokenStream2>)>;
 
 
-pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.into_iter();
-  stream.next();
+  let if_anchor = stream.next().span();
   let test = match stream.next() {
     Some(TokenTree2::Group(x)) => {
       let mut inner_test = TokenStream2::new();
       inner_test.extend(x.stream());
-      let out = do_with_in_explicit(inner_test, c.clone(), v.clone());
-      out
+      let out = do_with_in_explicit2(inner_test, c.clone(), v.clone());
+      match out {
+        Ok((v1, o1)) => o1,
+        Err((v1, o1)) => {
+          let mut conc = TokenStream2::new();
+          conc.extend(o1);
+          let sp = x.span();
+          let msg = "Error inside test of if statement.";
+          conc.extend(quote_spanned!{sp=> compile_error!{ #msg }});
+          return Err((v1, conc));
+        },
+      }
     },
-    x => {
-      let msg = format!("Expected a group in the test position of an if; got {:?}.", x);
-      return (v, quote!{compile_error!{ #msg }});
+    Some(e) => {
+      let msg = format!("Expected a group in the test position of an if; got {}.", e);
+      let sp = e.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+    },
+    None => {
+      let msg = "Input inside 'if' ended early; still expecting a test and then two branches.";
+      let sp = if_anchor.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
     },
   };
   let if_branch = match stream.next() {
@@ -989,9 +1047,15 @@ pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
       inner_test.extend(x.stream());
       inner_test
     },
-    x => {
-      let msg = format!("Expected a group in the first branch position of an if; got {:?}.", x);
-      return (v, quote!{compile_error!{ #msg }});
+    Some(e) => {
+      let msg = format!("Expected a group in the first branch position of an if; got {}.", e);
+      let sp = e.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+    },
+    None => {
+      let msg = "Input inside 'if' ended early; still expecting either one or two branches.";
+      let sp = if_anchor.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
     },
   };
   let else_branch = match stream.next() {
@@ -1001,18 +1065,19 @@ pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
       inner_test
     },
     None => TokenStream2::new(),
-    x => {
-      let msg = format!("Expected a group in the second branch position of an if; got {:?}.", x);
-      return (v, quote!{compile_error!{ #msg }});
+    Some(e) => {
+      let msg = format!("Expected a group in the second branch position of an if; got {}.", e);
+      let sp = if_anchor.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
     },
   };
   let test_value = tokenstreamToBool(test);
   if test_value {
-    let out = do_with_in_explicit(if_branch, c.clone(), v.clone());
-    (v, out)
+    let out = do_with_in_explicit2(if_branch, c.clone(), v.clone());
+    out
   } else {
-    let out = do_with_in_explicit(else_branch, c.clone(), v.clone());
-    (v, out)
+    let out = do_with_in_explicit2(else_branch, c.clone(), v.clone());
+    out
   }
 }
 
@@ -1053,7 +1118,7 @@ pub fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variab
   return Ok(out_str);
 }
 
-pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1064,25 +1129,29 @@ pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
     match concatHandlerInner(c.clone(), v.clone(), new_token_stream) {
       Ok(it)   => output.extend(TokenStream2::from(TokenTree2::Literal(proc_macro2::Literal::string(&it)))),
-      Err(err) => return (v, err.to_compile_error()),
+      Err(err) => return Err((v, err.to_compile_error())),
     }
-  } else if let Some(it) = concat_token {
+  } else if let Some(it) = concat_token.clone() {
     let msg = format!("Expected 'concat' to absolutely start a concat expression, got {}.", it);
-    return (v, quote!{compile_error!{ #msg }}.into());
+    let sp = concat_token.span();
+    return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
   }
-  return (v, output);
+  return Ok((v, output));
 }
 
-pub fn naiveStringifierHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
-  let mut stream = do_with_in_explicit(t, c.clone(), v.clone()).into_iter();
+pub fn naiveStringifierHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut stream = match do_with_in_explicit2(t, c.clone(), v.clone()) {
+    Ok((_, x)) => x,
+    x        => return x,
+  }.into_iter();
   stream.next();
   let mut midput = TokenStream2::new();
   midput.extend(stream);
   let output = format!("{}", midput);
-  (v, quote!{ #output })
+  Ok((v, quote!{ #output }))
 }
 
-pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1096,24 +1165,24 @@ pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Va
         let real_lit = syn::parse_str::<syn::Lit>(&lit.clone().to_string());
         match real_lit {
           Ok(syn::Lit::Str(it)) => output.extend(TokenStream2::from(TokenTree2::Ident(proc_macro2::Ident::new(&it.value(), lit.span())))),
-          Ok(x)            => return (v, quote!{compile_error!{ "Expected a string." }}.into()),
-          Err(err)         => return (v, err.to_compile_error()),
+          Ok(x)            => return Err((v, quote!{compile_error!{ "Expected a string." }})),
+          Err(err)         => return Err((v, err.to_compile_error())),
         }
       },
       Some(x) => {
         let msg = format!("Expected a literal, got {}.", x);
-        return (v, quote!{compile_error!{ #msg }}.into());
+        return Err((v, quote!{compile_error!{ #msg }}));
       },
-      None    => return (v, quote!{compile_error!{ "No string given; cannot create identifier." }}.into()),
+      None    => return Err((v, quote!{compile_error!{ "No string given; cannot create identifier." }})),
     }
   } else if let Some(it) = string_to_ident_token {
     let msg = format!("Expected 'string_to_ident' to absolutely start a string_to_ident expression, got {}.", it);
-    return (v, quote!{compile_error!{ #msg }}.into());
+    return Err((v, quote!{compile_error!{ #msg }}));
   }
-  return (v, output);
+  return Ok((v, output));
 }
 
-pub fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1128,11 +1197,11 @@ pub fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
     }
   } else if let Some(it) = for_token {
     let msg = format!("Expected 'for' to absolutely start a for expression, got {}.", it);
-    return (v, quote!{compile_error!{ #msg }}.into());
+    return Err((v, quote!{compile_error!{ #msg }}));
   } else {
-    return (v, quote!{compile_error!{ "For expression stream was unexpectedly empty." }}.into());
+    return Err((v, quote!{compile_error!{ "For expression stream was unexpectedly empty." }}));
   }
-  (v, output)
+  Ok((v, output))
 }
 
 enum Operator {
@@ -1215,7 +1284,7 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
   };
 }
 
-pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1223,7 +1292,10 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   if let Some(TokenTree2::Ident(name)) = ar_token.clone() {
     let mut temp = TokenStream2::new();
     temp.extend(stream);
-    let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+    let new_token_stream = match do_with_in_explicit2(temp, c.clone(), v.clone()) {
+      Ok((_, a)) => a,
+      e          => return e,
+    };
     let mut new_token_stream_iter = new_token_stream.into_iter();
     match new_token_stream_iter.next() {
       Some(TokenTree2::Ident(var_token)) => {
@@ -1235,7 +1307,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "u64" { proc_macro2::Literal::u64_suffixed } else { proc_macro2::Literal::u64_unsuffixed };
             let out = thing(match arithmeticInternal::<T, u64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1243,7 +1315,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "u32" { proc_macro2::Literal::u32_suffixed } else { proc_macro2::Literal::u32_unsuffixed };
             let out = thing(match arithmeticInternal::<T, u32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1251,7 +1323,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "u16" { proc_macro2::Literal::u16_suffixed } else { proc_macro2::Literal::u16_unsuffixed };
             let out = thing(match arithmeticInternal::<T, u16>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1259,7 +1331,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "u8" { proc_macro2::Literal::u8_suffixed } else { proc_macro2::Literal::u8_unsuffixed };
             let out = thing(match arithmeticInternal::<T, u8>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1267,7 +1339,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "i64" { proc_macro2::Literal::i64_suffixed } else { proc_macro2::Literal::i64_unsuffixed };
             let out = thing(match arithmeticInternal::<T, i64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1275,7 +1347,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "i32" { proc_macro2::Literal::i32_suffixed } else { proc_macro2::Literal::i32_unsuffixed };
             let out = thing(match arithmeticInternal::<T, i32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1283,7 +1355,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "i16" { proc_macro2::Literal::i16_suffixed } else { proc_macro2::Literal::i16_unsuffixed };
             let out = thing(match arithmeticInternal::<T, i16>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1291,7 +1363,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "i8" { proc_macro2::Literal::i8_suffixed } else { proc_macro2::Literal::i8_unsuffixed };
             let out = thing(match arithmeticInternal::<T, i8>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1299,7 +1371,7 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "f64" { proc_macro2::Literal::f64_suffixed } else { proc_macro2::Literal::f64_unsuffixed };
             let out = thing(match arithmeticInternal::<T, f64>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
@@ -1307,13 +1379,13 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             let thing = if a == "f32" { proc_macro2::Literal::f32_suffixed } else { proc_macro2::Literal::f32_unsuffixed };
             let out = thing(match arithmeticInternal::<T, f32>(c.clone(), v.clone(), temp2) {
               Ok(x) => x,
-              Err(err) => return (v, err.to_compile_error()),
+              Err(err) => return Err((v, err.to_compile_error())),
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
           it => {
             let msg = format!("Expected number type (u64, i64, f64, etc), got {}.", it);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            return Err((v, quote!{compile_error!{ #msg }}));
           }
         }
       },
@@ -1322,15 +1394,15 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
     }
   } else if let Some(it) = ar_token {
     let msg = format!("Expected 'arithmetic' first, got {}.", it);
-    return (v, quote!{compile_error!{ #msg }}.into());
+    return Err((v, quote!{compile_error!{ #msg }}));
   } else {
-    return (v, quote!{compile_error!{ "Arithmetic expression stream was unexpectedly empty." }}.into());
+    return Err((v, quote!{compile_error!{ "Arithmetic expression stream was unexpectedly empty." }}));
   }
-  (v, output)
+  Ok((v, output))
 }
-pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut temp = t.into_iter();
-  temp.next(); // Skip call
+  let name_anchor = temp.next().span(); // Skip call
   let c_out = match temp.next() {
     Some(TokenTree2::Punct(p)) if p.as_char() == '$' => {
       Configuration::<T> {
@@ -1357,55 +1429,50 @@ pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
       }
     },
     Some(x) => {
-      let msg = format!("Expected a raw sigil ($, %, ~, #) for withSigil, got {:?}.", x);
-      return (v, quote!{compile_error!{ #msg }});
+      let msg = format!("Expected a raw sigil ($, %, ~, #) for withSigil, got {}.", x);
+      return Err((v, quote_spanned!{name_anchor=> compile_error!{ #msg }}));
     },
     None => {
       let msg = "Expected a raw sigil ($, %, ~, #) for withSigil (and then some code to run as the next argument), but the input stopped early.";
-      return (v, quote!{compile_error!{ #msg }});
+      return Err((v, quote_spanned!{name_anchor=> compile_error!{ #msg }}));
     },
   };
   let mut tokens = TokenStream2::new();
   tokens.extend(temp);
-  let (v_out, out) = match do_with_in_explicit2(tokens, c_out, v.clone()) {
-    Ok((v1, o))  => (v1, o),
-    Err((v1, o)) => (v1, o),
-  };
-  (v_out, out)
+  do_with_in_explicit2(tokens, c_out, v.clone())
 }
-pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   todo!()
 }
-pub fn escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   match c.escaping_style {
-    Escaping::None      => (v, t),
+    Escaping::None      => Ok((v, t)),
     Escaping::Double    => actually_escape(c, v, data, quote!{ Double #t }),
     Escaping::Backslash => actually_escape(c, v, data, quote!{ Backslash #t }),
   }
 }
 
-pub fn actually_unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn actually_unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   todo!()
 }
-pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   match c.escaping_style {
-    Escaping::None      => (v, t),
+    Escaping::None      => Ok((v, t)),
     Escaping::Double    => actually_unescape(c, v, data, quote!{ Double #t }),
     Escaping::Backslash => actually_unescape(c, v, data, quote!{ Backslash #t }),
   }
 }
  
-pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut temp = t.into_iter();
   temp.next();
   let mut code = TokenStream2::new();
   code.extend(temp);
-  let in_it = do_with_in_explicit(code, c.clone(), v.clone());
-  let out = do_with_in_explicit(in_it, c.clone(), v.clone());
-  (v, out)
+  let (v2, in_it) = do_with_in_explicit2(code, c.clone(), v)?;
+  do_with_in_explicit2(in_it, c.clone(), v2)
 }
 // TODO: Remeber to check for whether 'quote' ends up stacking up due to everything inside the $(...) being passed through the t
-pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   // Remember that the first token of t should already be 'quote'
   let out = match c.sigil {
     Sigil::Dollar  => quote!{ $(#t) },
@@ -1413,29 +1480,43 @@ pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:
     Sigil::Hash    => quote!{ #(#t) },
     Sigil::Tilde   => quote!{ ~(#t) },
   };
-  (v, out)
+  Ok((v, out))
 }
 
-pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
-  let mut out: TokenStream2 = quote!{compile_error!{"Nothing here."}}.into();
-  let sig_char = format!("{}", c.sigil).pop().expect("Expected Sigil to have a character.");
-  let mut stream = t.into_iter();
-  check_token_ret!(v, Some(TokenTree2::Ident(uq)), stream.next(), "Expected 'unquote' to be the name of the handler called.", uq.to_string() == "unquote", "Expected 'unquote' to be the name of the handler called.");
+pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut out: TokenStream2 = quote!{compile_error!{"Nothing here."}};
+  let sig_char = match format!("{}", c.sigil).pop() {
+    Some(x) => x,
+    None    => {
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ "Expected Sigil to have a character." }}));
+    },
+  };
+  let mut stream = t.clone().into_iter();
+  check_token_ret!(v, t, uq, Some(TokenTree2::Ident(uq)), stream.next(), "Expected 'unquote' to be the name of the handler called.", uq.to_string() == "unquote", "Expected 'unquote' to be the name of the handler called.");
   let mut temp = TokenStream2::new();
   temp.extend(stream);
-  let mut as_run = do_with_in_explicit(temp, c.clone(), v.clone());
+  let (_, mut as_run) = do_with_in_explicit2(temp, c.clone(), v.clone())?;
   let mut stream = as_run.into_iter();
-  check_token_ret!(v, Some(TokenTree2::Punct(sig)), stream.next(), "Expected a quote.", sig.as_char() == sig_char, "Expected a quote.");
+  check_token_ret!(v, t, sig, Some(TokenTree2::Punct(sig)), stream.next(), "Expected a quote.", sig.as_char() == sig_char, "Expected a quote.");
   let tc = stream.next();
-  if let Some(TokenTree2::Group(the_call)) = tc.clone() {
-    let mut inner_stream = the_call.stream().into_iter();
-    check_token_ret!(v, Some(TokenTree2::Ident(q)), inner_stream.next(), "Expected 'quote'.", q.to_string() == "quote", "Expected 'quote'.");
-    out = TokenStream2::new();
-    out.extend(inner_stream);
-  } else {
-    let msg = format!("Expected a call body, got {:?}.", tc);
-    out = quote!{compile_error!{ #msg }}.into();
-  }
+  match tc.clone() {
+    Some(TokenTree2::Group(the_call)) => {
+      let mut inner_stream = the_call.stream().into_iter();
+      check_token_ret!(v, t, q, Some(TokenTree2::Ident(q)), inner_stream.next(), "Expected 'quote'.", q.to_string() == "quote", "Expected 'quote'.");
+      out = TokenStream2::new();
+      out.extend(inner_stream);
+    },
+    Some(x) => {
+      let msg = format!("Expected a call body, got {}.", x);
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+    },
+    None => {
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ "Args ended early; still expecting a call body." }}));
+    },
+  };
   /*
   if let Some(TokenTree2::Punct(p)) = tok.clone() {
     let p_c = p.as_char();
@@ -1448,7 +1529,7 @@ pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, dat
     let msg = format!("Expected {}, got {:?}, inside unquote.", sig_char, tok);
     out = quote!{compile_error!{ #msg }}.into();
   }*/
-  (v, out)
+  Ok((v, out))
 }
 
 #[derive(Debug,Clone)]
@@ -1459,7 +1540,7 @@ enum LogicBoolOp {
   Equals,
   NotEquals,
 }
-fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut left: Option<bool> = None;
   let mut operator: Option<LogicBoolOp> = None;
   for token in t.clone().into_iter() {
@@ -1469,8 +1550,9 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
           TokenTree2::Ident(x) if x.to_string() == "true" =>  true,
           TokenTree2::Ident(x) if x.to_string() == "false" => false,
           x => {
-            let msg = format!{"Expected true or false on the lhs of a logic expression; got {:?}.", x};
-            return (v, quote!{compile_error!{ #msg }});
+            let msg = format!{"Expected true or false on the lhs of a logic expression; got {}.", x};
+            let sp = x.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           },
         });
       },
@@ -1492,7 +1574,8 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               },
               x => {
                 let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
-                return (v, quote!{compile_error!{ #msg }});
+                let sp = x.span();
+                return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
               },
             }
           },
@@ -1503,21 +1586,28 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               TokenTree2::Ident(x) if x.to_string() == "false" => false,
               TokenTree2::Group(inner) => {
                 let mut rhs = TokenStream2::new();
-                rhs.extend(inner.stream());
-                let (_, it) = logicInternal(c.clone(), v.clone(), data.clone(), rhs);
+                rhs.extend(inner.clone().stream());
+                let (_, it) = logicInternal(c.clone(), v.clone(), data.clone(), rhs)?;
                 let out = match it.into_iter().next() {
                   Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => true,
                   Some(TokenTree2::Ident(x)) if x.to_string() == "false" => false,
-                  x => {
-                    let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
-                    return (v, quote!{compile_error!{ #msg }});
+                  Some(x) => {
+                    let msg = format!{"Expected true or false on the rhs of a logic expression; got {}.", x};
+                    let sp = x.span();
+                    return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+                  },
+                  None => {
+                    let msg = "Expected true or false on the rhs of a logic expression; got nothing.";
+                    let sp = inner.span();
+                    return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
                   },
                 };
                 out
               },
               x => {
-                let msg = format!{"Expected true or false on the rhs of a logic expression; got {:?}.", x};
-                return (v, quote!{compile_error!{ #msg }});
+                let msg = format!{"Expected true or false on the rhs of a logic expression; got {}.", x};
+                let sp = x.span();
+                return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
               },
             };
             let out = match op {
@@ -1535,10 +1625,10 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               },
               x => {
                 let msg = format!{"Expected & | = or ^ in a logic expression; got {:?}.", x};
-                return (v, quote!{compile_error!{ #msg }});
+                return Err((v, quote!{compile_error!{ #msg }}));
               },
             };
-            return (v, quote!{#out});
+            return Ok((v, quote!{#out}));
           },
         }
       },
@@ -1547,13 +1637,13 @@ fn logicInternalBool<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   let out = match left {
     None => {
       let msg = format!{"Missed a turn somewhere; left = {:?}, operator = {:?}, t = {:?} .", left, operator, t};
-      quote!{compile_error!{ #msg }}
+      return Err((v, quote!{compile_error!{ #msg }}));
     },
     Some(x) => {
       quote!{#x}
     },
   };
-  (v, out)
+  Ok((v, out))
 }
 
 enum NumOp {
@@ -1565,7 +1655,7 @@ enum NumOp {
   NotEqual,
 }
 
-fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq + std::str::FromStr>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> (Variables<T>, TokenStream2) where <N as std::str::FromStr>::Err: std::fmt::Debug {
+fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq + std::str::FromStr>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> StageResult<T> where <N as std::str::FromStr>::Err: std::fmt::Debug {
   let mut stream = t.into_iter().peekable();
   let left: N = match stream.next() {
     None => {
@@ -1635,25 +1725,32 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
     },
     _ => todo!(),
   };
-  (v, quote!{ #result })
+  Ok((v, quote!{ #result }))
 }
 
-fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let t = do_with_in_explicit(t, c.clone(), v.clone());
-  // We check whether it is a number of a bool, and split which one at that point
+  // We check whether it is a number or a bool, and split which one at that point
   let mut to_check = t.clone().into_iter();
+  let all_span = t.clone().span();
   match to_check.next() {
-    None => (v, quote!{compile_error!{ "Empty logic expression." }}.into()),
+    None => Err((v, quote_spanned!{all_span=> compile_error!{ "Empty logic expression." }})),
     Some(TokenTree2::Punct(x)) if x.as_char() == '!' => {
       let mut rest = TokenStream2::new();
       rest.extend(to_check);
-      let (v, out) = logicInternalBool(c, v, data, rest);
+      let (v, out) = logicInternalBool(c, v, data, rest)?;
       return match out.into_iter().next() {
-        Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => (v, quote!{ false }),
-        Some(TokenTree2::Ident(x)) if x.to_string() == "false" => (v, quote!{ true }),
-        x => {
-          let msg = format!{"Expected a boolean in a not clause, got {:?}", x};
-          (v, quote!{compile_error!{ #msg }})
+        Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => Ok((v, quote!{ false })),
+        Some(TokenTree2::Ident(x)) if x.to_string() == "false" => Ok((v, quote!{ true })),
+        Some(y) => {
+          let msg = format!{"Expected a boolean in a not clause, got {:}", y};
+          let sp = y.span();
+          Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
+        },
+        None => {
+          let msg = "Empty not clause.";
+          let sp = x.span();
+          Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
         },
       };
     },
@@ -1672,7 +1769,8 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
         "f64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0.0f64) },
         y => {
           let msg = format!("Expected true, false, a literal number, or a numeric type specifier; got {}.", y);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = x.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       }
     }
@@ -1680,10 +1778,13 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
     Some(TokenTree2::Group(x)) => {
       let mut inner = TokenStream2::new();
       inner.extend(x.stream());
-      let (_, left) = logicInternal(c.clone(), v.clone(), data.clone(), inner);
+      let (_, left) = logicInternal(c.clone(), v.clone(), data.clone(), inner)?;
       let left_first = left.into_iter().next();
       match left_first {
-        None => (v, quote!{compile_error!{ "Empty logic expression." }}.into()),
+        None => {
+          let sp = x.span();
+          Err((v, quote_spanned!{sp=> compile_error!{ "Empty logic expression." }}))
+        },
         Some(TokenTree2::Ident(x)) if (x.to_string() == "true") || (x.to_string() == "false") => {
           let mut new_stream = TokenStream2::new();
           new_stream.extend(TokenStream2::from(TokenTree2::Ident(x)));
@@ -1701,21 +1802,23 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
           logicInternalNum(c, v, data, new_stream, 0i128)
         },
         Some(x) => {
-          let msg = format!("Problem in logic lhs; expected true, false, or a number, got {:?}.", x);
-          (v, quote!{compile_error!{ #msg }}.into())
+          let msg = format!("Problem in logic lhs; expected true, false, or a number, got {}.", x);
+          let sp = x.span();
+          Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
         },
       }
     },
     Some(x) => {
-      let msg = format!("Problem in logic lhs; expected true, false, or a number, got {:?}.", x);
-      (v, quote!{compile_error!{ #msg }}.into())
+      let msg = format!("Problem in logic lhs; expected true, false, or a number, got {}.", x);
+      let sp = x.span();
+      Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
     }
   }
 }
 
 // logic x logic: & | ! ~ = != ~=
 // arith x arith: > < = <= >= != ~=
-pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
   let mut stream = t.into_iter();
@@ -1724,19 +1827,19 @@ pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
     if name.to_string() == "logic" {
       let mut temp = TokenStream2::new();
       temp.extend(stream);
-      let new_token_stream = do_with_in_explicit(temp, c.clone(), v.clone());
+      let (_, new_token_stream) = do_with_in_explicit2(temp, c.clone(), v.clone())?;
       return logicInternal(c, v, data, new_token_stream);
     } else {
       let msg = format!("Expected 'logic' first, got {}.", name);
-      return (v, quote!{compile_error!{ #msg }}.into());
+      return Err((v, quote!{compile_error!{ #msg }}));
     }
   } else if let Some(it) = ar_token {
     let msg = format!("Expected 'logic' first, got {}.", it);
-    return (v, quote!{compile_error!{ #msg }}.into());
+    return Err((v, quote!{compile_error!{ #msg }}));
   } else {
-    return (v, quote!{compile_error!{ "Logic expression stream was unexpectedly empty." }}.into());
+    return Err((v, quote!{compile_error!{ "Logic expression stream was unexpectedly empty." }}));
   }
-  (v, output)
+  Ok((v, output))
 }
 use std::str::FromStr;
 use std::io;
@@ -1744,7 +1847,7 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 use std::fs::File;
-pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut reset = false;
   let base = match c.clone().file {
     Some(x) => x,
@@ -1755,12 +1858,14 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     None => {
       //let msg = format!("Expected a path segment (ie a string literal) for the import handler; got {
       let msg = format!("'import' can only be invoked from a real file in a real directory; we could not make use of {}", file!());
-      return (v, quote!{compile_error{ #msg }});
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error{ #msg }}));
     },
   }.to_path_buf();
   let mut stream = t.into_iter();
   let anchor_span = stream.next().span(); // Skip 'include'
   let mut cont = true;
+  let mut final_span = anchor_span.clone();
   while cont {
     match stream.next() {
       Some(TokenTree2::Literal(segment)) => {
@@ -1773,10 +1878,13 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
               path.push(x.value());
             }
           },
-          _ => panic!("oqwiefhawlkfhLQIPLE"),
+          _ => {
+            return Err((v, quote_spanned!{anchor_span=> compile_error!{"Got a path segment that wasn't a String or Base."}}));
+          },
         };
       },
       Some(TokenTree2::Ident(id)) if id.to_string() == "Base" => {
+        final_span = id.span();
         reset = true;
       },
       _ => {
@@ -1785,13 +1893,13 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     };
   }
   if reset {
-    return (v, quote!{compile_error!{ "Path finished with a 'Base'; we need an actual file reference." }});
+    return Err((v, quote_spanned!{final_span=> compile_error!{ "Path finished with a 'Base'; we need an actual file reference." }}));
   };
   let mut f = match File::open(path.clone()) {
     Ok(s) => s,
     Err(e) => {
       let msg = format!("Failure to import; got error: {}\n Could not open file: {:?}", e, path.into_os_string());
-      return (v, quote!{compile_error{ #msg }});
+      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
     },
   };
   let mut buffer = String::new();
@@ -1799,14 +1907,14 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     Ok(_) => {},
     Err(x) => {
       let msg = format!("Failure to import; got error: {}\n Could not read from file: {:?}", x, path.into_os_string());
-      return (v, quote!{compile_error{ #msg }});
+      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
     },
   };
   let tokens = match TokenStream2::from_str(&buffer) {
     Ok(x) => x,
     Err(e) => {
       let msg = format!("Failure to import; got error: {}\n Could not parse file: {:?}", e, path.into_os_string());
-      return (v, quote!{compile_error{ #msg }});
+      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
     },
   };
   let cnew = Configuration::<T> {
@@ -1815,15 +1923,15 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   };
   let mut thing = TokenStream2::new();
   let (vout, out) = match do_with_in_explicit2(tokens, cnew, v.clone()) {
-    Ok((a, b)) => (a, b),
     Err((a,b))     => {
       thing.extend(b);
       let msg = format!("Problem encountered inside import {:?}.", path.into_os_string());
       thing.extend(quote_spanned!{anchor_span=> compile_error!{ #msg }});
       (a, thing)
     },
+    x => return x,
   };
-  (vout, out)
+  Ok((vout, out))
 }
 
 /*
@@ -1858,13 +1966,14 @@ struct FnArgs {
   positional: Vec<FnArg>,
   named: HashMap<String, FnArg>,
 }
-pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.clone().into_iter();
   let mut state = FnCallState::Nothing;
+  let core_anchor = t.span();
   match data.clone() {
     None => {
       let msg = format!("Expected a function body, got none, for function call {:?}", t);
-      return (v, quote!{compile_error!{ #msg }}.into());
+      return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
     },
     Some(program) => {
       // First we get the function's name
@@ -1873,14 +1982,14 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
         for token in stream {
           match state {
             FnCallState::Nothing => {
-              return (v, quote!{compile_error!{ "Confused state in internalFnRunner." }}.into())
+              return Err((v, quote_spanned!{core_anchor=> compile_error!{ "Confused state in internalFnRunner." }}))
             },
             FnCallState::Name(name) => {
               if let TokenTree2::Group(args) = token.clone() {
                 state = FnCallState::NameArgs(name, args);
               } else {
                 let msg = format!("Expected a function argument list in the function {} runner data; got {:?}", name, token);
-                return (v, quote!{compile_error!{ #msg }}.into());
+                return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
               }
             },
             FnCallState::NameArgs(name, args) => {
@@ -1888,12 +1997,12 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
                 state = FnCallState::NameArgsBody(name, args, body);
               } else {
                 let msg = format!("Expected a function body in the function {} runner data; got {:?}", name, token);
-                return (v, quote!{compile_error!{ #msg }}.into());
+                return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
               }
             },
             unexpected => {
               let msg = format!("Got more stuff in the function {} runner data; internal state {:?}, data {:?}", name, unexpected, token);
-              return (v, quote!{compile_error!{ #msg }}.into());
+              return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
             },
           }
         }
@@ -1902,15 +2011,16 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
           let required_args: Vec<String> = Vec::new(); // Put the inner name of each argument with no default in here; we check at the end that we have them all.
           todo!()
         } else {
-          (v, quote!{compile_error!{ "Did not have a body in the internal function runner's data." }}.into())
+          return Err((v, quote_spanned!{core_anchor=> compile_error!{ "Did not have a body in the internal function runner's data." }}));
         }
       } else {
-        return (v, quote!{compile_error!{ "Expected a named function." }}.into());
+        return Err((v, quote_spanned!{core_anchor=> compile_error!{ "Expected a named function." }}));
       }
     },
   }
 }
-pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let sp = t.clone().span();
   let mut variables = v.clone();
   let mut state: FnDefineState = FnDefineState::LessThanNothing;
   for token in t.into_iter() {
@@ -1922,11 +2032,13 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
             state = FnDefineState::Nothing;
           } else {
             let msg = format!("Expected 'fn' to absolutely start a fn expression, got {}.", token);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            let sp = name.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         } else {
           let msg = format!("Expected 'fn' to absolutely start a let expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       FnDefineState::Nothing => {
@@ -1934,7 +2046,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
           state = FnDefineState::Name(name.to_string());
         } else {
           let msg = format!("Expected a function name to start a fn expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       FnDefineState::Name(name) => {
@@ -1942,7 +2054,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
           state = FnDefineState::NameAnd(name, args);
         } else {
           let msg = format!("Expected an arglist, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       FnDefineState::NameAnd(name, args) => {
@@ -1950,7 +2062,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
           state = FnDefineState::NameAndAnd(name, args, body);
         } else {
           let msg = format!("Expected a function body, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       FnDefineState::NameAndAnd(name, args, body) => {
@@ -1962,7 +2074,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
     }
   }
   
-  (variables, quote!{ } )
+  Ok((variables, quote!{ } ))
 }
 
 #[derive(Debug,Clone,PartialEq,Eq)]
@@ -1972,7 +2084,7 @@ enum LetState {
   Name(String),
   NamePostEquals(String),
 }
-pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut variables = v.clone();
   let mut state: LetState = LetState::LessThanNothing;
 
@@ -1985,11 +2097,13 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
             state = LetState::Nothing;
           } else {
             let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            let sp = token.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         } else {
           let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::Nothing => {
@@ -1997,7 +2111,8 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
           state = LetState::Name(name.to_string());
         } else {
           let msg = format!("Expected a variable name to start a let expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::Name(var_name) => {
@@ -2006,11 +2121,13 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
             state = LetState::NamePostEquals(var_name);
           } else {
             let msg = format!("Expected '=', got {}.", token);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            let sp = token.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         } else {
           let msg = format!("Expected '=', got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::NamePostEquals(var_name) => {
@@ -2019,15 +2136,16 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
           state = LetState::Nothing;
         } else {
           let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
        }
       },
     }
   }
-  (variables, quote!{}.into())
+  Ok((variables, quote!{}))
 }
 
-pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut variables = v.clone();
   let mut state: LetState = LetState::LessThanNothing;
 
@@ -2040,11 +2158,13 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
             state = LetState::Nothing;
           } else {
             let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            let sp = token.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         } else {
           let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::Nothing => {
@@ -2052,7 +2172,8 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
           state = LetState::Name(name.to_string());
         } else {
           let msg = format!("Expected a variable name to start a var expression, got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::Name(var_name) => {
@@ -2061,11 +2182,13 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
             state = LetState::NamePostEquals(var_name);
           } else {
             let msg = format!("Expected '=', got {}.", token);
-            return (v, quote!{compile_error!{ #msg }}.into());
+            let sp = token.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
           }
         } else {
           let msg = format!("Expected '=', got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
       LetState::NamePostEquals(var_name) => {
@@ -2075,12 +2198,13 @@ pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
           state = LetState::Nothing;
         } else {
           let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
-          return (v, quote!{compile_error!{ #msg }}.into());
+          let sp = token.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
        }
       },
     }
   }
-  (variables, quote!{}.into())
+  Ok((variables, quote!{}))
 }
 
 macro_rules! q_or_unq {
@@ -2099,11 +2223,12 @@ macro_rules! q_or_unq {
               if let Some(x) = inner_stream.next() {
                 x
               } else {
-                return ($v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+                let sp = group.span();
+                return Err(($v, quote_spanned!{sp=> compile_error!{ "Expecting a group to actually be a quote." }}));
               }
             },
             x => {
-              return ($v, quote!{compile_error!{ "Expecting a group to actually be a quote." }});
+              return Err(($v, quote!{compile_error!{ "Expecting a group; got something else where a quote group should be." }}));
             },
           }
         } else {
@@ -2112,9 +2237,10 @@ macro_rules! q_or_unq {
   };
 }
 
-pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> (Variables<T>, TokenStream2) {
+pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
-  check_token_ret!(v, Some(TokenTree2::Ident(name)), stream.next(), "Expected 'array'", name.to_string() == "array", "Expected 'array'");
+  check_token_ret!(v, root_anchor_span, name, Some(TokenTree2::Ident(name)), stream.next(), "Expected 'array'", name.to_string() == "array", "Expected 'array'");
   let q = if let Some(TokenTree2::Ident(is_q)) = stream.peek() {
     if is_q.to_string() == "q" {
       stream.next();
@@ -2131,9 +2257,9 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
   } else {
     let msg = format!("Expected an array op; ... got {:?}", stream.peek());
     let sp = stream.peek().span();
-    return (v, quote_spanned! {sp=> compile_error!{ #msg }});
+    return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
   };
-  stream.next();
+  let op_anchor = stream.next().span();
   match op.as_str() {
     "length" => {
       let mut arr_base = if q {
@@ -2144,20 +2270,20 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           Ok(x)  => {
             match x.into_iter().next() {
               Some(x) => x,
-              None => return (v, quote!{compile_error!{ "Argument list ended early; expected an array." }}),
+              None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Argument list ended early; expected an array." }})),
             }
           },
           Err(x) => {
-            return (v, quote!{compile_error!{ #x }});
+            return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ #x }}));
           },
         }
       } else {
         let mut to_run = TokenStream2::new();
         to_run.extend(stream);
-        let mut have_run = do_with_in_explicit(to_run, c.clone(), v.clone()).into_iter();
+        let mut have_run = do_with_in_explicit2(to_run, c.clone(), v.clone())?.1.into_iter();
         match have_run.next() {
           Some(x) => x,
-          None => return (v, quote!{compile_error!{ "Argument list ended early; expected an array." }}),
+          None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Argument list ended early; expected an array." }})),
         }
       };
       if let TokenTree2::Group(arr) = arr_base {
@@ -2166,29 +2292,30 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         for _ in arr_stuff {
           len += 1;
         }
-        return (v, quote!{ #len });
+        return Ok((v, quote!{ #len }));
       } else {
         let msg = format!("Expected an array to get the length of; ... got {:?}", arr_base);
-        return (v, quote!{compile_error!{ #msg }});
+        let sp = arr_base.span();
+        return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
       }
     },
     "ith" => {
       // First we run all the tokens
       let mut to_run = TokenStream2::new();
       to_run.extend(stream);
-      let mut stream = do_with_in_explicit(to_run, c.clone(), v.clone()).into_iter().peekable();
+      let mut stream = do_with_in_explicit2(to_run, c.clone(), v.clone())?.1.into_iter().peekable();
       // Now we dispatch on the ith op
       let sub_op = if let Some(TokenTree2::Ident(x)) = stream.peek() {
         x.to_string()
       } else {
         let msg = format!("Expected an array ith op; ... got {:?}", stream.peek());
-        return (v, quote!{compile_error!{ #msg }});
+        return Err((v, quote!{compile_error!{ #msg }}));
       };
       stream.next();
       let mut offset = Offset::Head;
       // We need to parse the $n. It can be a positive number (indexing from the start), a negative number (indexing backwards from the end),
       // or the special tokens 'head' and 'tail'.
-      pull_offset!(stream, offset, v);
+      pull_offset!(stream, op_anchor, offset, v);
       // Some of the sub_op's have different args from this point, so we have to match on the sub_op before we can continue
       match sub_op.as_str() {
         "get" => {
@@ -2197,26 +2324,26 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
           let idx = convert_offset_to_usize(offset, array.len());
           let out = array[idx].clone();
-          return (v, quote!{ #out });
+          return Ok((v, quote!{ #out }));
         },
         "set" => {
           // Next arg is an array element
           let item = match stream.next() {
             Some(x) => x,
-            None => return (v, quote!{compile_error!{ "Problem with array ith set???" }}),
+            None => return Err((v, quote!{compile_error!{ "Problem with array ith set???" }})),
           };
           let base_el = match q_or_unq!(stream, v, c, item, q) {
             TokenTree2::Group(grp) => TokenStream2::from(grp.stream()),
-            _ => return (v, quote!{compile_error!{ "Expected a [...]. I am very confused." }}),
+            _ => return Err((v, quote!{compile_error!{ "Expected a [...]. I am very confused." }})),
           };
           let mut array: Vec<TokenStream2> = vec!();
           pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
           let idx = convert_offset_to_usize(offset, array.len());
           array[idx] = base_el;
           if q {
-            return (v, quote!{ $(quote [ #({#array})* ]) });
+            return Ok((v, quote!{ $(quote [ #({#array})* ]) }));
           } else {
-            return (v, quote!{ [ #({#array})* ] });
+            return Ok((v, quote!{ [ #({#array})* ] }));
           }
         },
         "remove" => {
@@ -2226,29 +2353,29 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           let idx = convert_offset_to_usize(offset, array.len());
           array.remove(idx);
           if q {
-            return (v, quote!{ $(quote [ #({#array})* ]) });
+            return Ok((v, quote!{ $(quote [ #({#array})* ]) }));
           } else {
-            return (v, quote!{ [ #({#array})* ] });
+            return Ok((v, quote!{ [ #({#array})* ] }));
           }
         },
         "insert" => {
           // Next arg is an array element
           let item = match stream.next() {
             Some(x) => x,
-            None => return (v, quote!{compile_error!{ "Problem with array ith set???" }}),
+            None => return Err((v, quote!{compile_error!{ "Problem with array ith set???" }})),
           };
           let base_el = match q_or_unq!(stream, v, c, item, q) {
             TokenTree2::Group(grp) => TokenStream2::from(grp.stream()),
-            _ => return (v, quote!{compile_error!{ "Expected a [...]. I am very confused." }}),
+            _ => return Err((v, quote!{compile_error!{ "Expected a [...]. I am very confused." }})),
           };
           let mut array: Vec<TokenStream2> = vec!();
           pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
           let idx = convert_offset_to_usize(offset, array.len() + 1); // We base the offset off of the *new* size, which means that measuring from the end *can* append through using tail or -1
           array.insert(idx, base_el);
           if q {
-            return (v, quote!{ $(quote [ #({#array})* ]) });
+            return Ok((v, quote!{ $(quote [ #({#array})* ]) }));
           } else {
-            return (v, quote!{ [ #({#array})* ] });
+            return Ok((v, quote!{ [ #({#array})* ] }));
           }
         },
         _ => todo!(),
@@ -2260,7 +2387,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         x.to_string()
       } else {
         let msg = format!("Expected an array slice op; ... got {:?}", stream.peek());
-        return (v, quote!{compile_error!{ #msg }});
+        return Err((v, quote!{compile_error!{ #msg }}));
       };
       stream.next();
 
@@ -2283,7 +2410,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         } else {
           let msg = format!("Expected an array element, got {:?}", it);
           let sp = it.span();
-          return (v, quote_spanned!{sp=> compile_error!{ #msg }});
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       }
       if q {
@@ -2293,9 +2420,9 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           Sigil::Hash    => quote!{ #(quote [#out]) },
           Sigil::Tilde   => quote!{ ~(quote [#out]) },
         };
-        return (v, qout);
+        return Ok((v, qout));
       } else {
-        return (v, quote!{ [#out] });
+        return Ok((v, quote!{ [#out] }));
       }
     },
     "mk" => {
@@ -2315,18 +2442,18 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           Sigil::Hash    => quote!{ #(quote [#out]) },
           Sigil::Tilde   => quote!{ ~(quote [#out]) },
         };
-        return (v, qout);
+        return Ok((v, qout));
       } else {
-        return (v, quote!{ [#out] });
+        return Ok((v, quote!{ [#out] }));
       }
     },
     x => {
       let msg = format!("Got an array operator I did not understand: {}", x);
-      return (v, quote_spanned!{op_span=> compile_error!{ #msg }});
+      return Err((v, quote_spanned!{op_span=> compile_error!{ #msg }}));
     },
   };
 
-  (v, todo!())
+  todo!()
 }
 
 fn convert_offset_to_usize(offset: Offset, len: usize) -> usize {
@@ -2477,7 +2604,8 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
             let mut iter = stream.clone().into_iter();
             if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
               if let Some((handler, data)) = use_vars.clone().handlers.get(&first.to_string()) {
-                let (new_vars, more_output) = handler(c.clone(), use_vars.clone(), data.clone(), stream);
+                let ((new_vars, more_output), is_ok) = unwrap_to(handler(c.clone(), use_vars.clone(), data.clone(), stream));
+                err = err | (!is_ok);
                 use_vars = new_vars;
                 output.extend(more_output);
               }
