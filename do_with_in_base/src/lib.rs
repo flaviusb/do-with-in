@@ -2696,6 +2696,11 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
                 err = err | (!is_ok);
                 use_vars = new_vars;
                 output.extend(more_output);
+              } else {
+                err = true;
+                let msg = format!("Undefined handler referenced: {}", &first.to_string());
+                let sp = group.span();
+                output.extend(quote_spanned!{sp=> compile_error!{ #msg }});
               }
             }
 
