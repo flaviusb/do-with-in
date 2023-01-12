@@ -1013,13 +1013,14 @@ pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler
 pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.into_iter();
   let if_anchor = stream.next().span();
-  let test = match stream.next() {
+  let (test_sp, test) = match stream.next() {
     Some(TokenTree2::Group(x)) => {
+      let ts = x.span();
       let mut inner_test = TokenStream2::new();
       inner_test.extend(x.stream());
       let out = do_with_in_explicit2(inner_test, c.clone(), v.clone());
       match out {
-        Ok((v1, o1)) => o1,
+        Ok((v1, o1)) => (ts, o1),
         Err((v1, o1)) => {
           let mut conc = TokenStream2::new();
           conc.extend(o1);
@@ -1082,8 +1083,7 @@ pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
     },
     Err(err) => {
       let msg = format!("Problem in if test; {}", err);
-      let sp = test.span();
-      Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
+      Err((v, quote_spanned!{test_sp=> compile_error!{ #msg }}))
     },
   }
 }
