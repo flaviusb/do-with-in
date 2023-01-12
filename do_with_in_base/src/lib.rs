@@ -1071,23 +1071,31 @@ pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
       return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
     },
   };
-  let test_value = tokenstreamToBool(test);
-  if test_value {
-    let out = do_with_in_explicit2(if_branch, c.clone(), v.clone());
-    out
-  } else {
-    let out = do_with_in_explicit2(else_branch, c.clone(), v.clone());
-    out
+  match tokenstreamToBool(test.clone()) {
+    Ok(true) => {
+      let out = do_with_in_explicit2(if_branch, c.clone(), v.clone());
+      out
+    },
+    Ok(false) => {
+      let out = do_with_in_explicit2(else_branch, c.clone(), v.clone());
+      out
+    },
+    Err(err) => {
+      let msg = format!("Problem in if test; {}", err);
+      let sp = test.span();
+      Err((v, quote_spanned!{sp=> compile_error!{ #msg }}))
+    },
   }
 }
 
-fn tokenstreamToBool(stream: TokenStream2) -> bool {
+fn tokenstreamToBool(stream: TokenStream2) -> std::result::Result<bool, String> {
   match stream.into_iter().next() {
-    Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => true,
-    Some(TokenTree2::Ident(x)) if x.to_string() == "false" => false,
+    Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => Ok(true),
+    Some(TokenTree2::Ident(x)) if x.to_string() == "false" => Ok(false),
     Some(TokenTree2::Group(x)) => tokenstreamToBool(x.stream()),
-    x => {
-      panic!("Bool expected, got {:?}.", x);
+    None => Err("Bool expected, got nothing.".to_string()),
+    Some(x) => {
+      Err(format!("Bool expected, got {}.", x))
     },
   }
 }
