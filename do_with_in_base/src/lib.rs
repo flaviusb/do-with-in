@@ -892,15 +892,13 @@ impl<T: StartMarker + Clone> Configuration<T> {
 #[derive(Clone)]
 pub struct Variables<'a, T: StartMarker + Clone> {
   handlers:    Handlers<'a, T>,
-  with_interp: HashMap<String, TokenStream2>,
-  no_interp:   HashMap<String, TokenStream2>,
+  variables:   HashMap<String, (TokenStream2, bool)>,
 }
 
 impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
   fn to_tokens(&self, tokens: &mut TokenStream2) {
     let t = T::token_token();
-    let wi = self.with_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
-    let ni = self.no_interp.iter().map(|(k, v)| quote!{ (#k, quote!{#v}) });
+    let va = self.variables.iter().map(|(k, (v, t))| quote!{ (#k, (quote!{#v}, #t)) });
     let handlers = self.handlers.iter().map(|(k, (v, it))| {
       
       quote!{ (#k, (Box::new(quote!{#it}), quote!{quote!{#it}})) }
@@ -908,8 +906,7 @@ impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
     tokens.extend(quote!{
       Variables::<#t> {
         handlers: HashMap::from([#(#handlers),*]),
-        with_interp: HashMap::from([#(#wi),*]),
-        no_interp: HashMap::from([#(#ni),*]),
+        variables: HashMap::from([#(#va),*]),
       }
     });
   }
@@ -917,8 +914,7 @@ impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {
 
 enum VariableOpts {
   Handlers,
-  WithInterp,
-  NoInterp,
+  Vars,
 }
 
 enum VariableChunks {
@@ -935,7 +931,7 @@ enum VariableChunks {
 impl<'a, T> TryFrom<TokenStream2> for Variables<'a, T> where T: StartMarker + Clone {
   type Error = &'static str;
   fn try_from(value: TokenStream2) -> std::result::Result<Self, Self::Error> {
-    let mut vars = Variables::<'a, T> { handlers: HashMap::new(), with_interp: HashMap::new(), no_interp: HashMap::new() };
+    let mut vars = Variables::<'a, T> { handlers: HashMap::new(), variables: HashMap::new(), };
     let mut iter = value.into_iter();
     let inner = unwrap_struct!("Variables", iter, x, ());
     let mut progress = VariableChunks::NothingYet;
@@ -946,8 +942,7 @@ impl<'a, T> TryFrom<TokenStream2> for Variables<'a, T> where T: StartMarker + Cl
             TokenTree2::Ident(name) => {
               progress = VariableChunks::Name(match name.to_string().as_str() {
                 "handlers"     => VariableOpts::Handlers,
-                "with_interp"  => VariableOpts::WithInterp,
-                "no_interp"    => VariableOpts::NoInterp,
+                "variables"    => VariableOpts::Vars,
                 x              => return Err("Expecting handlers, with_interp, or no_interp."),
               });
             },
@@ -1002,7 +997,7 @@ impl<'a, T> TryFrom<TokenStream2> for Variables<'a, T> where T: StartMarker + Cl
 
 impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
   fn default() -> Self {
-    Variables { handlers: genericDefaultHandlers::<'a, T>(), with_interp: HashMap::new(), no_interp: HashMap::new() }
+    Variables { handlers: genericDefaultHandlers::<'a, T>(), variables: HashMap::new(), }
   }
 }
 
@@ -1817,7 +1812,7 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
 }
 
 fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
-  let t = do_with_in_explicit(t, c.clone(), v.clone());
+  let (_, t) = do_with_in_explicit2(t, c.clone(), v.clone())?;
   // We check whether it is a number or a bool, and split which one at that point
   let mut to_check = t.clone().into_iter();
   let all_span = t.clone().span();
@@ -1947,7 +1942,7 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
       //let msg = format!("Expected a path segment (ie a string literal) for the import handler; got {
       let msg = format!("'import' can only be invoked from a real file in a real directory; we could not make use of {}", file!());
       let sp = t.span();
-      return Err((v, quote_spanned!{sp=> compile_error{ #msg }}));
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
     },
   }.to_path_buf();
   let mut stream = t.into_iter();
@@ -1987,7 +1982,7 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     Ok(s) => s,
     Err(e) => {
       let msg = format!("Failure to import; got error: {}\n Could not open file: {:?}", e, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
+      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
     },
   };
   let mut buffer = String::new();
@@ -1995,14 +1990,14 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
     Ok(_) => {},
     Err(x) => {
       let msg = format!("Failure to import; got error: {}\n Could not read from file: {:?}", x, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
+      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
     },
   };
   let tokens = match TokenStream2::from_str(&buffer) {
     Ok(x) => x,
     Err(e) => {
       let msg = format!("Failure to import; got error: {}\n Could not parse file: {:?}", e, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error{ #msg }}));
+      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
     },
   };
   let cnew = Configuration::<T> {
@@ -2023,7 +2018,7 @@ pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
 }
 
 /*
- * ($fn name(_ foo, _ inner = {default}, bar = {wesf e2f}, named inner_name_2 = {,,, wefi 2we,f 2qwef}) { })
+ * $(fn name(_ foo, _ inner = {default}, bar = {wesf e2f}, named inner_name_2 = {,,, wefi 2we,f 2qwef}) { })
  *
  *
  */
@@ -2060,7 +2055,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
   let core_anchor = t.span();
   match data.clone() {
     None => {
-      let msg = format!("Expected a function body, got none, for function call {:?}", t);
+      let msg = format!("Expected a function body, got none, for function call {}", t);
       return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
     },
     Some(program) => {
@@ -2076,7 +2071,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
               if let TokenTree2::Group(args) = token.clone() {
                 state = FnCallState::NameArgs(name, args);
               } else {
-                let msg = format!("Expected a function argument list in the function {} runner data; got {:?}", name, token);
+                let msg = format!("Expected a function argument list in the function {} runner data; got {}", name, token);
                 return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
               }
             },
@@ -2084,7 +2079,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
               if let TokenTree2::Group(body) = token.clone() {
                 state = FnCallState::NameArgsBody(name, args, body);
               } else {
-                let msg = format!("Expected a function body in the function {} runner data; got {:?}", name, token);
+                let msg = format!("Expected a function body in the function {} runner data; got {}", name, token);
                 return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
               }
             },
@@ -2096,6 +2091,11 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
         }
         if let FnCallState::NameArgsBody(name, args, body) = state {
           // Create an argument matcher
+          // External name and internal name
+          // Declaration order and invocation order
+          // Vec<Option<TokenStream2>> ← defaults via position
+          // HashMap<Name, Position> ← give names to things with names
+          // HashMap<Position, Name> ← give positions to things with names
           let required_args: Vec<String> = Vec::new(); // Put the inner name of each argument with no default in here; we check at the end that we have them all.
           todo!()
         } else {
@@ -2155,6 +2155,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
       },
       FnDefineState::NameAndAnd(name, args, body) => {
         let mut stream = TokenStream2::new();
+        stream.extend(TokenStream2::from(TokenTree2::Ident(Ident::new(&name, sp))));
         stream.extend(TokenStream2::from(TokenTree2::Group(args)).into_iter());
         stream.extend(TokenStream2::from(TokenTree2::Group(body)).into_iter());
         variables.handlers.insert(name, (Box::new(&internalFnRunner), Some(stream)));
@@ -2167,33 +2168,16 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
 
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
-  LessThanNothing,
   Nothing,
   Name(String),
   NamePostEquals(String),
 }
-pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+pub fn assignmentInternalHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2, interp_first: bool, interp_after: bool) -> StageResult<T> {
   let mut variables = v.clone();
-  let mut state: LetState = LetState::LessThanNothing;
+  let mut state: LetState = LetState::Nothing;
 
   for token in t.into_iter() {
     match state.clone() {
-      LetState::LessThanNothing => {
-        // Consume the initial 'let'
-        if let TokenTree2::Ident(name) = token.clone() {
-          if name.to_string() == "let" {
-            state = LetState::Nothing;
-          } else {
-            let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
-            let sp = token.span();
-            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-          }
-        } else {
-          let msg = format!("Expected 'let' to absolutely start a let expression, got {}.", token);
-          let sp = token.span();
-          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-        }
-      },
       LetState::Nothing => {
         if let TokenTree2::Ident(name) = token {
           state = LetState::Name(name.to_string());
@@ -2220,7 +2204,8 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
       },
       LetState::NamePostEquals(var_name) => {
         if let TokenTree2::Group(body) = token {
-          variables.no_interp.insert(var_name, body.stream());
+          let to_insert = if interp_first { do_with_in_explicit2(body.stream(), c.clone(), variables.clone())?.1 } else { body.stream() };
+          variables.variables.insert(var_name, (to_insert, interp_after));
           state = LetState::Nothing;
         } else {
           let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
@@ -2232,67 +2217,20 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
   }
   Ok((variables, quote!{}))
 }
+pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut stream = t.into_iter();
+  check_token_ret!(v, Some(TokenTree2::Ident(it)), stream.next(), "Expecting 'let'.", it.to_string() == "let", "Expecting 'let'.");
+  let mut temp = TokenStream2::new();
+  temp.extend(stream);
+  assignmentInternalHandler(c, v, temp, false, false)
+}
 
 pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
-  let mut variables = v.clone();
-  let mut state: LetState = LetState::LessThanNothing;
-
-  for token in t.into_iter() {
-    match state.clone() {
-      LetState::LessThanNothing => {
-        // Consume the initial 'let'
-        if let TokenTree2::Ident(name) = token.clone() {
-          if name.to_string() == "var" {
-            state = LetState::Nothing;
-          } else {
-            let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
-            let sp = token.span();
-            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-          }
-        } else {
-          let msg = format!("Expected 'var' to absolutely start a let expression, got {}.", token);
-          let sp = token.span();
-          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-        }
-      },
-      LetState::Nothing => {
-        if let TokenTree2::Ident(name) = token {
-          state = LetState::Name(name.to_string());
-        } else {
-          let msg = format!("Expected a variable name to start a var expression, got {}.", token);
-          let sp = token.span();
-          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-        }
-      },
-      LetState::Name(var_name) => {
-        if let TokenTree2::Punct(punct) = token.clone() {
-          if punct.as_char() == '=' && punct.spacing() == proc_macro2::Spacing::Alone {
-            state = LetState::NamePostEquals(var_name);
-          } else {
-            let msg = format!("Expected '=', got {}.", token);
-            let sp = token.span();
-            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-          }
-        } else {
-          let msg = format!("Expected '=', got {}.", token);
-          let sp = token.span();
-          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-        }
-      },
-      LetState::NamePostEquals(var_name) => {
-        if let TokenTree2::Group(body) = token {
-          let to_insert = do_with_in_explicit(body.stream(), c.clone(), variables.clone());
-          variables.with_interp.insert(var_name, to_insert);
-          state = LetState::Nothing;
-        } else {
-          let msg = format!("Expected a curly bracket surrounded expression (the value to put in the variable), got {}.", token);
-          let sp = token.span();
-          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-       }
-      },
-    }
-  }
-  Ok((variables, quote!{}))
+  let mut stream = t.into_iter();
+  check_token_ret!(v, Some(TokenTree2::Ident(it)), stream.next(), "Expecting 'var'.", it.to_string() == "var", "Expecting 'var'.");
+  let mut temp = TokenStream2::new();
+  temp.extend(stream);
+  assignmentInternalHandler(c, v, temp, true, true)
 }
 
 macro_rules! q_or_unq {
@@ -2669,10 +2607,12 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
           expecting_variable = false;
           let var_name = ident.to_string();
           // First we check for no interp, then interp
-          if let Some(replace) = use_vars.no_interp.get(&var_name) {
-            output.extend(replace.clone().into_iter());
-          } else if let Some(replace) = use_vars.with_interp.get(&var_name) {
-            output.extend(TokenStream2::from(do_with_in_explicit(replace.clone(), c.clone(), use_vars.clone())));
+          if let Some((replace, interp)) = use_vars.variables.get(&var_name) {
+            if *interp {
+              output.extend(TokenStream2::from(do_with_in_explicit2(replace.clone(), c.clone(), use_vars.clone())?.1));
+            } else {
+              output.extend(replace.clone().into_iter());
+            }
           } else {
             let msg = format!("No such variable: {} defined.", var_name);
             let sp = ident.span();
@@ -2681,6 +2621,23 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
           }
         } else {
           output.extend(TokenStream2::from(TokenTree2::Ident(ident.clone())).into_iter());
+        }
+      },
+      TokenTree2::Literal(lit) if expecting_variable => {
+        let var_name = lit.to_string();
+        expecting_variable = false;
+        // First we check for no interp, then interp
+        if let Some((replace, interp)) = use_vars.variables.get(&var_name) {
+          if *interp {
+            output.extend(TokenStream2::from(do_with_in_explicit2(replace.clone(), c.clone(), use_vars.clone())?.1));
+          } else {
+            output.extend(replace.clone().into_iter());
+          }
+        } else {
+          let msg = format!("No such variable: {} defined.", var_name);
+          let sp = lit.span();
+          output.extend(quote_spanned! {sp=> compile_error!{ #msg }});
+          err = true;
         }
       },
       TokenTree2::Group(group) => {
@@ -2709,7 +2666,7 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
         } else {
           let delim = group.clone().delimiter();
           output.extend(TokenStream2::from(TokenTree2::Group(
-                proc_macro2::Group::new(delim, do_with_in_explicit(group.stream(), c.clone(), use_vars.clone()))
+                proc_macro2::Group::new(delim, do_with_in_explicit2(group.stream(), c.clone(), use_vars.clone())?.1)
           )));
         }
       },

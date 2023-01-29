@@ -1,4 +1,35 @@
 
+alias -> creates new aliasinternalhandler with data "nameoforiginalhandler", and assigns it to the handler datastructure with name "name given"
+aliasinternalhandler -> snips off the first entry in t, creates a new tokenstream2 with "nameoforiginalhandler" (taken from data), then extends it with t. Calls the handler called "name given" with the new tokenstream; returns that.
+
+$(marker "name" => {value},...)
+$(runMarkers location name*)
+
+macro_rules! matcher... to activate on a series of tokens and then pass through the values to an inner bit of code
+
+Args in vecs
+with arrays that list offsets in to that vec, so we can go by unnamed or named
+
+for inner and outer:
+  vec of positions (with named coming in at the end from left to right)
+  vec of Names (with nameless being $0, $1, $2 etc based on positions for $ as sigil)
+
+vec of default values
+
+get arg values from caller to populate actual values based on args, push all of those to env, then got through defaults pushing in to the environment left-to-right in the declaration
+
+
+
+---
+
+try_and, try_or, try_one_until_first_success, try_all_until_first_failure
+parse_str <- takes a string and turns it into a TokenStream2 or fails
+file_str <- return a string with the contents of a file
+parse_file <- conceptually $(parse_str $(file_str ...)) but able to print the filename in the error
+
+
+---
+
 Note to self:
 Check whether the c,v smuggling *actually* works - my hunch is that it won't, as the 'timing' of stage execution doesn't match up.
 If so, rehydrate *inside* the proc macro, by adding a TokenTree:Group to the start of the TokenStream that containst the configuration and variables
