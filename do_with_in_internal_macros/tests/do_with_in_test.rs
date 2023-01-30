@@ -552,6 +552,18 @@ fn import_test5() {
   assert_eq!(twelve, 12);
 }
 
+#[test]
+fn fn_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(fn blah (a b, c d=3) { let c = $b + $d; })
+    //$(blah (a=3, c=4))
+    let a = 1;
+  };
+  assert_eq!(a, 1);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

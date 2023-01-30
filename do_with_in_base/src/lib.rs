@@ -2028,7 +2028,6 @@ enum FnDefineState {
   Nothing,
   Name(String),
   NameAnd(String, proc_macro2::Group),
-  NameAndAnd(String,  proc_macro2::Group, proc_macro2::Group),
 }
 
 #[derive(Debug,Clone)]
@@ -2050,7 +2049,6 @@ struct FnArgs {
   named: HashMap<String, FnArg>,
 }
 pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
-  let mut stream = t.clone().into_iter();
   let mut state = FnCallState::Nothing;
   let core_anchor = t.span();
   match data.clone() {
@@ -2060,6 +2058,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
     },
     Some(program) => {
       // First we get the function's name
+      let mut stream = program.into_iter();
       if let Some(TokenTree2::Ident(name)) = stream.next() {
         state = FnCallState::Name(name.to_string());
         for token in stream {
@@ -2097,9 +2096,17 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
           // HashMap<Name, Position> ← give names to things with names
           // HashMap<Position, Name> ← give positions to things with names
           let required_args: Vec<String> = Vec::new(); // Put the inner name of each argument with no default in here; we check at the end that we have them all.
-          todo!()
+          let mut call_site_stream = t.clone().into_iter();
+          call_site_stream.next(); // The function invocation token
+          if let Some(TokenTree2::Group(grp)) = call_site_stream.next() {
+            todo!()
+          } else {
+            let msg = format!("Did not get args in invocation of function {}.", name);
+            return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
+          }
         } else {
-          return Err((v, quote_spanned!{core_anchor=> compile_error!{ "Did not have a body in the internal function runner's data." }}));
+          let msg = format!("Did not have a body in the internal function runner's data; got {:?}.", state);
+          return Err((v, quote_spanned!{core_anchor=> compile_error!{ #msg }}));
         }
       } else {
         return Err((v, quote_spanned!{core_anchor=> compile_error!{ "Expected a named function." }}));
@@ -2116,7 +2123,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
       FnDefineState::LessThanNothing => {
         // Consume the initial 'let'
         if let TokenTree2::Ident(name) = token.clone() {
-          if name.to_string() == "let" {
+          if name.to_string() == "fn" {
             state = FnDefineState::Nothing;
           } else {
             let msg = format!("Expected 'fn' to absolutely start a fn expression, got {}.", token);
@@ -2147,23 +2154,21 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
       },
       FnDefineState::NameAnd(name, args) => {
         if let TokenTree2::Group(body) = token {
-          state = FnDefineState::NameAndAnd(name, args, body);
+          let mut stream = TokenStream2::new();
+          stream.extend(TokenStream2::from(TokenTree2::Ident(Ident::new(&name, sp))));
+          stream.extend(TokenStream2::from(TokenTree2::Group(args)).into_iter());
+          stream.extend(TokenStream2::from(TokenTree2::Group(body)).into_iter());
+          variables.handlers.insert(name.clone(), (Box::new(&internalFnRunner), Some(stream)));
+          return Ok((variables, quote!{ } ))
         } else {
           let msg = format!("Expected a function body, got {}.", token);
           return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
       },
-      FnDefineState::NameAndAnd(name, args, body) => {
-        let mut stream = TokenStream2::new();
-        stream.extend(TokenStream2::from(TokenTree2::Ident(Ident::new(&name, sp))));
-        stream.extend(TokenStream2::from(TokenTree2::Group(args)).into_iter());
-        stream.extend(TokenStream2::from(TokenTree2::Group(body)).into_iter());
-        variables.handlers.insert(name, (Box::new(&internalFnRunner), Some(stream)));
-      },
     }
   }
   
-  Ok((variables, quote!{ } ))
+  Err((v, quote_spanned!{sp=> compile_error!{ "Input to function definition ended early." }}))
 }
 
 #[derive(Debug,Clone,PartialEq,Eq)]
@@ -2655,7 +2660,11 @@ pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Conf
                 output.extend(more_output);
               } else {
                 err = true;
-                let msg = format!("Undefined handler referenced: {}", &first.to_string());
+                let mut keys = String::from("");
+                for key in use_vars.clone().handlers.keys() {
+                  keys += &format!(", \"{}\"", key);
+                }
+                let msg = format!("Undefined handler referenced: {}\nList of all known handlers: {}", &first.to_string(), keys);
                 let sp = group.span();
                 output.extend(quote_spanned!{sp=> compile_error!{ #msg }});
               }
