@@ -1,9 +1,41 @@
 
+array each name $array =>
+  for i in get each element from array
+    out += quoted_span! {root=> $(#name #i)};
+  return do_with_in_explicit... out
+
+array map is_hygenic name {stuff} $array
+  for i in get each element from array
+    mut new_v = v.clone();
+    new_v.variables.insert(name, stuff)
+    if is_hygenic throw away new v, otherwise replace old v with new v
+    out += match do_with_in_explicit new_v, stuff {
+      Ok(x, y) => y
+  return ...
+
+---
+
+names:
+
+make $0...$n, $n+1...$m for (left to right) the _'s and then the named things
+do inside and outside separately
+single token ⇒ use that token for inside and outside name
+single _ *can* result in a different inner and outer numbering
+if there is an =..., this is the default
+TokenTree2::Ident's, TokenTree2::Literal's, and $identifiers can be unbracketed
+TokenStream2's (including dwi arrays) must be inside a TokenTree2::Group
+
+If there are any non-default variables without a value, return an error with the unspecified necessary args.
+Create new environment from existing environment
+Make empty variables for every internal name (both explicit, when it exists, and number for all).
+Go left to right from definitions, running the code for that value with the existing environment, and then set the number (and, if it exists, explicit) variable in the environment to that value.
+
 alias -> creates new aliasinternalhandler with data "nameoforiginalhandler", and assigns it to the handler datastructure with name "name given"
 aliasinternalhandler -> snips off the first entry in t, creates a new tokenstream2 with "nameoforiginalhandler" (taken from data), then extends it with t. Calls the handler called "name given" with the new tokenstream; returns that.
 
 $(marker "name" => {value},...)
 $(runMarkers location name*)
+$(runAllMarkers location*)
 
 macro_rules! matcher... to activate on a series of tokens and then pass through the values to an inner bit of code
 

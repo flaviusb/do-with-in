@@ -2099,6 +2099,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
           let mut call_site_stream = t.clone().into_iter();
           call_site_stream.next(); // The function invocation token
           if let Some(TokenTree2::Group(grp)) = call_site_stream.next() {
+            let mut call_site_args = grp.stream();
             todo!()
           } else {
             let msg = format!("Did not get args in invocation of function {}.", name);

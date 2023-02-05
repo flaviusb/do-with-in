@@ -557,8 +557,8 @@ fn fn_test() {
   do_with_in!{
     sigil: $
     do
-    $(fn blah (a b, c d=3) { let c = $b + $d; })
-    //$(blah (a=3, c=4))
+    $(fn blah (a b, c d=3, _ e={let c}) { $0 = $b + $d; })
+    //$(blah ({let mut d}, a=3, c=4))
     let a = 1;
   };
   assert_eq!(a, 1);
