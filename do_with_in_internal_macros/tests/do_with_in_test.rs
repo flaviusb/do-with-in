@@ -553,6 +553,28 @@ fn import_test5() {
 }
 
 #[test]
+fn array_each_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(array each if [{(true) {let f = 3;} {let f = 4;}} {(false) {let g = 3;} {let g = 4;}} {($(logic 7 > 3)) {let h = 3;} {let h = 4;}} {($(logic 7 < 3)) {let i = 3;} {let i = 4;}} ])
+  };
+  do_with_in!{
+    sigil: #
+    do
+    #(array each if [{(true) {let j = 3;} {let j = 4;}} {(false) {let k = 3;} {let k = 4;}} {(#(logic 7 > 3)) {let l = 3;} {let l = 4;}} {(#(logic 7 < 3)) {let m = 3;} {let m = 4;}} ])
+  };
+  assert_eq!(f, 3);
+  assert_eq!(g, 4);
+  assert_eq!(h, 3);
+  assert_eq!(i, 4);
+  assert_eq!(j, 3);
+  assert_eq!(k, 4);
+  assert_eq!(l, 3);
+  assert_eq!(m, 4);
+}
+
+#[test]
 fn fn_test() {
   do_with_in!{
     sigil: $

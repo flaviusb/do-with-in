@@ -7,10 +7,15 @@ array each name $array =>
 array map is_hygenic name {stuff} $array
   for i in get each element from array
     mut new_v = v.clone();
+    restore_old_name = new_v.variables.get(name)
     new_v.variables.insert(name, stuff)
     if is_hygenic throw away new v, otherwise replace old v with new v
     out += match do_with_in_explicit new_v, stuff {
       Ok(x, y) => y
+    match restore_old_name {
+      None    => new_v.variables.remove(name),
+      Some(x) => new_v.variables.set(name, x),
+    };
   return ...
 
 ---

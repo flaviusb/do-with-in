@@ -2457,6 +2457,55 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         return Ok((v, quote!{ [#out] }));
       }
     },
+    "each" => {
+      let mut to_run = TokenStream2::new();
+      to_run.extend(stream);
+      let mut stream = match do_with_in_explicit2(to_run, c.clone(), v.clone()) {
+        Ok((x, y)) => y,
+        z => return z,
+      }.into_iter();
+      let name = match stream.next() {
+        None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Arguments to 'array each' ended early; expected a name and an array." }})),
+        Some(x) => match x {
+          TokenTree2::Ident(it)   => it,
+          it => {
+            let msg = format!("Expected a name, got {}", it);
+            let sp = it.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+          },
+        },
+      };
+      let mut array: Vec<TokenStream2> = vec!();
+      pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+      let mut out = TokenStream2::new();
+      match c.sigil {
+        Sigil::Dollar => {
+          for i in array {
+            let sp = i.span();
+            out.extend(quote_spanned!{sp=> $(#name #i)});
+          };
+        },
+        Sigil::Hash => {
+          for i in array {
+            let sp = i.span();
+            out.extend(quote_spanned!{sp=> #(#name #i)});
+          };
+        },
+        Sigil::Percent => {
+          for i in array {
+            let sp = i.span();
+            out.extend(quote_spanned!{sp=> %(#name #i)});
+          };
+        },
+        Sigil::Tilde => {
+          for i in array {
+            let sp = i.span();
+            out.extend(quote_spanned!{sp=> ~(#name #i)});
+          };
+        },
+      }
+      return do_with_in_explicit2(out, c, v);
+    },
     "mk" => {
       // This is a simple thing; we just iterate through every argument,
       // check that it is a valid array element, and then put it in another group
