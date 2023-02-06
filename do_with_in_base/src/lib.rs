@@ -2520,7 +2520,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         z => return z,
       }.into_iter();
       let isolate = match stream.next() {
-        None => return Err((v, quote_spanned!{op_span=> compile_error!{ "Too few arguments; expected a bool (for whether to isolate), then a group and an array." }})),
+        None => return Err((v, quote_spanned!{op_span=> compile_error!{ "Too few arguments; expected a bool (for whether to isolate), then a name, a group, and an array." }})),
         Some(x) => match tokenTreeToBool(x) {
           Ok(x) => x,
           Err(msg) => {
@@ -2529,9 +2529,9 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         },
       };
       let name = match stream.next() {
-        None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Arguments to 'array each' ended early; expected a name and an array." }})),
+        None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Arguments to 'array each' ended early; expected a name, a group, and an array." }})),
         Some(x) => match x {
-          TokenTree2::Ident(it)   => it,
+          TokenTree2::Ident(it)   => it.to_string(),
           it => {
             let msg = format!("Expected a name, got {}", it);
             let sp = it.span();
@@ -2539,7 +2539,51 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           },
         },
       };
-      todo!();
+      let code_segment = match stream.next() {
+        None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Arguments to 'array each' ended early; expected group and an array." }})),
+        Some(TokenTree2::Group(it)) => {
+          it.stream()
+        },
+        Some(it) => {
+          let msg = format!("Expected a group, got {}", it);
+          let sp = it.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+        },
+      };
+      let mut array: Vec<TokenStream2> = vec!();
+      pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
+      let mut out = TokenStream2::new();
+      let mut new_v = v.clone();
+      let mut restore_old_name: Option<(TokenStream2, bool)> = None;
+      for i in array {
+        if isolate {
+          new_v = v.clone();
+          new_v.variables.insert(name.clone(), (i, true));
+          restore_old_name = None;
+        } else {
+          restore_old_name = new_v.variables.insert(name.clone(), (i, true));
+        }
+        
+        match do_with_in_explicit2(code_segment.clone(), c.clone(), new_v.clone()) {
+          Err((vn, o)) => {
+            out.extend(o);
+            return Err((vn, out));
+          },
+          Ok((vn, o)) => {
+            out.extend(o);
+            if !isolate {
+              new_v = vn;
+              match restore_old_name {
+                None => new_v.variables.remove(&name),
+                Some(x) => new_v.variables.insert(name.clone(), x),
+              };
+            } else {
+              new_v = v.clone();
+            };
+          },
+        };
+      };
+      return Ok((new_v, out));
     },
     "mk" => {
       // This is a simple thing; we just iterate through every argument,
