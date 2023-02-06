@@ -1083,15 +1083,21 @@ pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
   }
 }
 
-fn tokenstreamToBool(stream: TokenStream2) -> std::result::Result<bool, String> {
-  match stream.into_iter().next() {
-    Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => Ok(true),
-    Some(TokenTree2::Ident(x)) if x.to_string() == "false" => Ok(false),
-    Some(TokenTree2::Group(x)) => tokenstreamToBool(x.stream()),
-    None => Err("Bool expected, got nothing.".to_string()),
-    Some(x) => {
+fn tokenTreeToBool(tree: TokenTree2) -> std::result::Result<bool, String> {
+  match tree {
+    TokenTree2::Ident(x) if x.to_string() == "true"  => Ok(true),
+    TokenTree2::Ident(x) if x.to_string() == "false" => Ok(false),
+    TokenTree2::Group(x) => tokenstreamToBool(x.stream()),
+    x => {
       Err(format!("Bool expected, got {}.", x))
     },
+  }
+}
+
+fn tokenstreamToBool(stream: TokenStream2) -> std::result::Result<bool, String> {
+  match stream.into_iter().next() {
+    Some(x) => tokenTreeToBool(x),
+    None => Err("Bool expected, got nothing.".to_string()),
   }
 }
 
@@ -2505,6 +2511,35 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
         },
       }
       return do_with_in_explicit2(out, c, v);
+    },
+    "map" => {
+      let mut to_run = TokenStream2::new();
+      to_run.extend(stream);
+      let mut stream = match do_with_in_explicit2(to_run, c.clone(), v.clone()) {
+        Ok((x, y)) => y,
+        z => return z,
+      }.into_iter();
+      let isolate = match stream.next() {
+        None => return Err((v, quote_spanned!{op_span=> compile_error!{ "Too few arguments; expected a bool (for whether to isolate), then a group and an array." }})),
+        Some(x) => match tokenTreeToBool(x) {
+          Ok(x) => x,
+          Err(msg) => {
+            return Err((v, quote_spanned!{op_span=> compile_error!{ #msg }}));
+          },
+        },
+      };
+      let name = match stream.next() {
+        None => return Err((v, quote_spanned!{root_anchor_span=> compile_error!{ "Arguments to 'array each' ended early; expected a name and an array." }})),
+        Some(x) => match x {
+          TokenTree2::Ident(it)   => it,
+          it => {
+            let msg = format!("Expected a name, got {}", it);
+            let sp = it.span();
+            return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+          },
+        },
+      };
+      todo!();
     },
     "mk" => {
       // This is a simple thing; we just iterate through every argument,

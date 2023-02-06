@@ -4,14 +4,24 @@ array each name $array =>
     out += quoted_span! {root=> $(#name #i)};
   return do_with_in_explicit... out
 
-array map is_hygenic name {stuff} $array
+array map should_isolate name {stuff} $array
+  mut new_v = v.clone()
+  mut restore_old_name: Option<String> = None;
   for i in get each element from array
-    mut new_v = v.clone();
-    restore_old_name = new_v.variables.get(name)
+    if (should_isolate) {
+      new_v = v.clone();
+    } else {
+      restore_old_name = new_v.variables.get(name)
+    };
     new_v.variables.insert(name, stuff)
-    if is_hygenic throw away new v, otherwise replace old v with new v
     out += match do_with_in_explicit new_v, stuff {
-      Ok(x, y) => y
+      Ok((x, y)) => y,
+      Err((x, y) => {
+        out.extend(x);
+        out.extend(quote_spanned!{sp=> compile_error!{"Blah!"}});
+        return Err((x, out));
+      },
+    }
     match restore_old_name {
       None    => new_v.variables.remove(name),
       Some(x) => new_v.variables.set(name, x),
