@@ -575,7 +575,7 @@ fn array_each_test() {
 }
 
 #[test]
-fn array_map_Test() {
+fn array_map_test() {
   do_with_in!{
     sigil: $
     do
@@ -587,7 +587,6 @@ fn array_map_Test() {
   assert_eq!(f_0(1), 0);
   assert_eq!(f_4(1), 2);
   assert_eq!(f_6(1), 3);
-
 }
 
 #[test]
