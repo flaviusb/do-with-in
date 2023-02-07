@@ -2513,6 +2513,7 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       return do_with_in_explicit2(out, c, v);
     },
     "map" => {
+      // $(array map should_isolate name {stuff} $array)
       let mut to_run = TokenStream2::new();
       to_run.extend(stream);
       let mut stream = match do_with_in_explicit2(to_run, c.clone(), v.clone()) {

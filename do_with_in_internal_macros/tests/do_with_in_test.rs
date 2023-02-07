@@ -575,6 +575,22 @@ fn array_each_test() {
 }
 
 #[test]
+fn array_map_Test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(let
+      insert = {{[{[2] [a] [u64]}] [{[3] [b] [i32]}] [{[0] [c] [u8]}] }}
+      section = {{fn $(string_to_ident $(concat "f_" $(arithmetic u64u 2 * $(array ith get 0 $test))))($(array ith get 1 $test): $(array ith get 2 $test)) -> $(array ith get 2 $test) { $(array ith get 1 $test) * $(array ith get 0 $test) } }})
+    $(array map true test $section $insert)
+  };
+  assert_eq!(f_0(1), 0);
+  assert_eq!(f_4(1), 2);
+  assert_eq!(f_6(1), 3);
+
+}
+
+#[test]
 fn fn_test() {
   do_with_in!{
     sigil: $

@@ -1,3 +1,9 @@
+Unrelated:
+- hypermedia 'shell' approach, where you have a multipart resource with 'segments' of different multilevelmime-types, with ~etags so you can cache the 'presentation' segment, and then the other segments are 'data', so you can do the 'more efficient' approach.
+- an advanced form of 'snowflaking' that can change between a format that is 'uniform and complete' (but fuckhueg) with one that has a 'shell' part and then 'specialised' 'small' formats eg text/json+'forapp' or text/xml+'forapp'...
+- 'link bundles' or etc, which may need a 'negotiation' step to see which sub resources are needed
+
+---
 
 array each name $array =>
   for i in get each element from array
