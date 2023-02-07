@@ -581,12 +581,17 @@ fn array_map_test() {
     do
     $(let
       insert = {{[{[2] [a] [u64]}] [{[3] [b] [i32]}] [{[0] [c] [u8]}] }}
-      section = {{fn $(string_to_ident $(concat "f_" $(arithmetic u64u 2 * $(array ith get 0 $test))))($(array ith get 1 $test): $(array ith get 2 $test)) -> $(array ith get 2 $test) { $(array ith get 1 $test) * $(array ith get 0 $test) } }})
-    $(array map true test $section $insert)
+      sectionf = {{fn $(string_to_ident $(concat "f_" $(arithmetic u64u 2 * $(array ith get 0 $test))))($(array ith get 1 $test): $(array ith get 2 $test)) -> $(array ith get 2 $test) { $(array ith get 1 $test) * $(array ith get 0 $test) } }}
+      sectionv = {{let $(string_to_ident $(concat "v_" $(array ith get 0 $test))) = $(string_to_ident $(concat "f_" $(arithmetic u64u 2 * $(array ith get 0 $test))))($(array ith get 0 $test) + 1); }})
+    $(array map true test $sectionf $insert)
+    $(array map true test $sectionv $insert)
   };
   assert_eq!(f_0(1), 0);
   assert_eq!(f_4(1), 2);
   assert_eq!(f_6(1), 3);
+  assert_eq!(v_0, 0);
+  assert_eq!(v_2, 6);
+  assert_eq!(v_3, 12);
 }
 
 #[test]
