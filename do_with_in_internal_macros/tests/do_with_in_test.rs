@@ -602,6 +602,7 @@ fn fn_test() {
     $(fn blah (a b, c d=3, _ e={let c}) { $0 = $b + $d; })
     //$(blah ({let mut d}, a=3, c=4))
     let a = 1;
+    $(runMarkers Base "do_with_in_internal_macros" "tests" "do_with_in_test.rs")
   };
   assert_eq!(a, 1);
 }

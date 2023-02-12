@@ -1936,80 +1936,85 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 use std::fs::File;
-pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
-  let mut reset = false;
-  let base = match c.clone().file {
-    Some(x) => x,
-    None => file!().to_string(),
-  };
-  let mut path = match Path::new(&base).parent() {
-    Some(x) => x,
-    None => {
-      //let msg = format!("Expected a path segment (ie a string literal) for the import handler; got {
-      let msg = format!("'import' can only be invoked from a real file in a real directory; we could not make use of {}", file!());
-      let sp = t.span();
-      return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
-    },
-  }.to_path_buf();
-  let mut stream = t.into_iter();
-  let anchor_span = stream.next().span(); // Skip 'include'
-  let mut cont = true;
-  let mut final_span = anchor_span.clone();
-  while cont {
-    match stream.next() {
-      Some(TokenTree2::Literal(segment)) => {
-        match syn::parse_str::<syn::LitStr>(&segment.clone().to_string()) {
-          Ok(x) => {
-            if reset {
-              path = Path::new(&x.value()).to_path_buf();
-              reset = false;
-            } else {
-              path.push(x.value());
-            }
-          },
-          _ => {
-            return Err((v, quote_spanned!{anchor_span=> compile_error!{"Got a path segment that wasn't a String or Base."}}));
-          },
-        };
+macro_rules! getCode {
+  ($stream: ident, $tokens: ident, $anchor_span: ident, $cnew: ident, $c: ident, $path: ident, $v: ident, $t: ident) => {
+    let mut reset = false;
+    let base = match $c.clone().file {
+      Some(x) => x,
+      None => file!().to_string(),
+    };
+    let mut $path = match Path::new(&base).parent() {
+      Some(x) => x,
+      None => {
+        //let msg = format!("Expected a path segment (ie a string literal) for the import handler; got {
+        let msg = format!("'import' can only be invoked from a real file in a real directory; we could not make use of {}", file!());
+        let sp = $t.span();
+        return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
       },
-      Some(TokenTree2::Ident(id)) if id.to_string() == "Base" => {
-        final_span = id.span();
-        reset = true;
-      },
-      _ => {
-        cont = false;
+    }.to_path_buf();
+    let mut $stream = $t.into_iter();
+    let $anchor_span = $stream.next().span(); // Skip 'include'
+    let mut cont = true;
+    let mut final_span = $anchor_span.clone();
+    while cont {
+      match $stream.next() {
+        Some(TokenTree2::Literal(segment)) => {
+          match syn::parse_str::<syn::LitStr>(&segment.clone().to_string()) {
+            Ok(x) => {
+              if reset {
+                $path = Path::new(&x.value()).to_path_buf();
+                reset = false;
+              } else {
+                $path.push(x.value());
+              }
+            },
+            _ => {
+              return Err(($v, quote_spanned!{final_span=> compile_error!{"Got a path segment that wasn't a String or Base."}}));
+            },
+          };
+        },
+        Some(TokenTree2::Ident(id)) if id.to_string() == "Base" => {
+          final_span = id.span();
+          reset = true;
+        },
+        _ => {
+          cont = false;
+        },
+      };
+    }
+    if reset {
+      return Err(($v, quote_spanned!{final_span=> compile_error!{ "Path finished with a 'Base'; we need an actual file reference." }}));
+    };
+    let mut f = match File::open($path.clone()) {
+      Ok(s) => s,
+      Err(e) => {
+        let msg = format!("Failure to import; got error: {}\n Could not open file: {:?}", e, $path.into_os_string());
+        return Err(($v, quote_spanned!{$anchor_span=> compile_error!{ #msg }}));
       },
     };
-  }
-  if reset {
-    return Err((v, quote_spanned!{final_span=> compile_error!{ "Path finished with a 'Base'; we need an actual file reference." }}));
+    let mut buffer = String::new();
+    match f.read_to_string(&mut buffer) {
+      Ok(_) => {},
+      Err(x) => {
+        let msg = format!("Failure to import; got error: {}\n Could not read from file: {:?}", x, $path.into_os_string());
+        return Err(($v, quote_spanned!{$anchor_span=> compile_error!{ #msg }}));
+      },
+    };
+    let $tokens = match TokenStream2::from_str(&buffer) {
+      Ok(x) => x,
+      Err(e) => {
+        let msg = format!("Failure to import; got error: {}\n Could not parse file: {:?}", e, $path.into_os_string());
+        return Err(($v, quote_spanned!{$anchor_span=> compile_error!{ #msg }}));
+      },
+    };
+    let $cnew = Configuration::<T> {
+      file: Some($path.display().to_string()),
+      ..$c
+    };
   };
-  let mut f = match File::open(path.clone()) {
-    Ok(s) => s,
-    Err(e) => {
-      let msg = format!("Failure to import; got error: {}\n Could not open file: {:?}", e, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
-    },
-  };
-  let mut buffer = String::new();
-  match f.read_to_string(&mut buffer) {
-    Ok(_) => {},
-    Err(x) => {
-      let msg = format!("Failure to import; got error: {}\n Could not read from file: {:?}", x, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
-    },
-  };
-  let tokens = match TokenStream2::from_str(&buffer) {
-    Ok(x) => x,
-    Err(e) => {
-      let msg = format!("Failure to import; got error: {}\n Could not parse file: {:?}", e, path.into_os_string());
-      return Err((v, quote_spanned!{anchor_span=> compile_error!{ #msg }}));
-    },
-  };
-  let cnew = Configuration::<T> {
-    file: Some(path.display().to_string()),
-    ..c
-  };
+}
+pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
   let mut thing = TokenStream2::new();
   let (vout, out) = match do_with_in_explicit2(tokens, cnew, v.clone()) {
     Err((a,b))     => {
@@ -2275,6 +2280,21 @@ macro_rules! q_or_unq {
   };
 }
 
+pub fn markerHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let root_anchor_span = t.clone().span();
+  let mut stream = t.into_iter().peekable();
+  check_token_ret!(v, root_anchor_span, name, Some(TokenTree2::Ident(name)), stream.next(), "Expected 'marker'", name.to_string() == "marker", "Expected 'marker'");
+  //while stream.peek().is_some() {
+  //  //
+  //}
+  Ok((v, quote!{}))
+}
+pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
+  dbg!(cnew.file);
+  // The file is in `tokens`; so we go over the file to find instances of `$(marker {...})` and run all the `...`
+  Ok((v, quote!{}))
+}
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
@@ -2667,6 +2687,8 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("run"), ((Box::new(&run), None)));
   m.insert(String::from("array"), ((Box::new(&arrayHandler), None)));
   m.insert(String::from("import"), ((Box::new(&importHandler), None)));
+  m.insert(String::from("runMarkers"), ((Box::new(&runMarkersHandler), None)));
+  m.insert(String::from("marker"), ((Box::new(&markerHandler), None)));
   m.insert(String::from("withSigil"), ((Box::new(&withSigilHandler), None)));
   m
 }
