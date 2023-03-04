@@ -2289,10 +2289,39 @@ pub fn markerHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   //}
   Ok((v, quote!{}))
 }
+
 pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
-  dbg!(cnew.file);
+  // If we are running only a specific marker, this will have been called with $(runMarkers $path => "name of marker to run")
+  // getCode! will have eaten the '=', but that leaves us the '>' to check on
+  let limit = match stream.next() {
+    None => None,
+    Some(TokenTree2::Punct(p)) if p.as_char() == '>' => {
+      // Limit to markers with matching name
+      match stream.next() {
+        Some(TokenTree2::Literal(it)) => {
+          Some(it.to_string())
+        },
+        None => {
+          let sp = p.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{"Expected a name to limit which markers to run; got nothing."} }));
+        },
+        Some(x) => {
+          let msg = format!("Expected a name to limit which markers to run; got {}", x);
+          let sp = x.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{#msg} }));
+        },
+      }
+    },
+    Some(x) => {
+      let msg = format!("Expected a => and then a name to limit which markers to run; got {}", x);
+      let sp = x.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{#msg} }));
+    },
+  };
   // The file is in `tokens`; so we go over the file to find instances of `$(marker {...})` and run all the `...`
+  // We use c.sigil to figure out which symbol we should be looking for for $
+  let tok: Vec<TokenTree2> = Vec::from_iter(stream);
   Ok((v, quote!{}))
 }
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
