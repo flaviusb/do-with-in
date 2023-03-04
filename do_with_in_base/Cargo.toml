@@ -17,3 +17,4 @@ doctest = false
 quote = "1.0"
 syn = { version = "1.0", features = ["full", "visit", "fold", "extra-traits", "parsing", "proc-macro"] }
 proc-macro2 = "1.0"
+bimap = "0.6.2"

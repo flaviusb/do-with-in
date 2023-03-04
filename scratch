@@ -72,6 +72,10 @@ vec of default values
 get arg values from caller to populate actual values based on args, push all of those to env, then got through defaults pushing in to the environment left-to-right in the declaration
 
 
+$pi ≡ Punct("_") or Ident
+$val ≡ Group or Ident or Literal
+($pi $pi? ("=" $val)?),*
+
 
 ---
 

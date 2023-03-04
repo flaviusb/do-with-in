@@ -2,6 +2,7 @@ extern crate proc_macro;
 extern crate syn;
 #[macro_use] extern crate quote;
 extern crate proc_macro2;
+extern crate bimap;
 
 use proc_macro::{TokenStream, TokenTree};
 use proc_macro2::TokenTree as TokenTree2;
@@ -2103,14 +2104,67 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
           // Create an argument matcher
           // External name and internal name
           // Declaration order and invocation order
-          // Vec<Option<TokenStream2>> ← defaults via position
-          // HashMap<Name, Position> ← give names to things with names
-          // HashMap<Position, Name> ← give positions to things with names
-          let required_args: Vec<String> = Vec::new(); // Put the inner name of each argument with no default in here; we check at the end that we have them all.
+          let mut defaults_by_declaration_position: Vec<Option<TokenStream2>> = Vec::new();
+          let mut thunks_by_invocation_position: Vec<Option<TokenStream2>> = Vec::new();
+          // The inner and outer names index into defaults_by_position, which is our 'root list of args'
+          let mut inner_names: bimap::BiMap<usize, String> = bimap::BiMap::<usize, String>::new();
+          let mut outer_names: bimap::BiMap<usize, String> = bimap::BiMap::<usize, String>::new();
+          // Once we have all the declaration site stuff done, we populate the thunks_by_invocation_position
+          // and then process them.
+          // Thunks get run in an environment built up of things invoked to the left of them using the external names.
+          // Defaults get run in an environment built up of things defined to the left of them using the internal names.
+          // We have a list of internal/external names with assigned values
+          // The order of processing is...
           let mut call_site_stream = t.clone().into_iter();
           call_site_stream.next(); // The function invocation token
           if let Some(TokenTree2::Group(grp)) = call_site_stream.next() {
-            let mut call_site_args = grp.stream();
+            let mut call_site_args = grp.stream().into_iter().peekable();
+            let mut declaration_site_args = args.clone().stream().into_iter().peekable();
+            // First we parse the declaration site args to generate a parser for the use site args
+            let mut more = true;
+            while more {
+              // $pi ≡ Punct("_") or Ident
+              // $val ≡ Group or Ident or Literal
+              // $args ≡ ($pi $pi? ("=" $val)?),*
+              let first = match declaration_site_args.next() {
+                None => {more = false; continue},
+                Some(TokenTree2::Punct(punct)) if punct.as_char() == ',' => continue,
+                Some(TokenTree2::Punct(punct)) if punct.as_char() == '_' => None,
+                Some(TokenTree2::Ident(ident)) => Some(ident.to_string()),
+                Some(it) => {
+                  let msg = format!("Got ⌜{}⌝ in argument list for function \"{}\"; expected '_' or an ident.", it, name);
+                  let sp = it.span();
+                  return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+                },
+              };
+              let (has_second, might_have_third) = match declaration_site_args.peek() {
+                None => {more = false; (false, false)},
+                Some(TokenTree2::Punct(punct)) if punct.as_char() == ',' => (false, false),
+                Some(TokenTree2::Punct(punct)) if punct.as_char() == '_' => (true, true),
+                Some(TokenTree2::Ident(ident)) => (true, true),
+                Some(TokenTree2::Punct(punct)) if punct.as_char() == '=' => (false, true),
+                Some(it) => {
+                  let msg = format!("Got ⌜{}⌝ in argument list for function \"{}\"; expected '_' or an ident.", it, name);
+                  let sp = it.span();
+                  return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+                },
+              };
+              if has_second {
+                // We get the value and do everything else inside here too
+                /*let second = match declaration_site_args.next() {
+                  None => {
+                  },
+                  Some(...) => {
+                  },
+                  Some(x) => {
+                  },
+                };*/
+              } else {
+                // We stuff the first thing in the 
+              }
+              if might_have_third {
+              }
+            }
             todo!()
           } else {
             let msg = format!("Did not get args in invocation of function {}.", name);
