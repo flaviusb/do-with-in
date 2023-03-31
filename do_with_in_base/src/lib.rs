@@ -2966,7 +2966,7 @@ fn do_with_in_izer(args: TokenStream, body: TokenStream) -> TokenStream {
 fn conf_test_panic1() {
   let input: TokenStream2 = quote! {sigil: % ow2eihf do wiwlkef }.into();
   let output = do_with_in_internal(input);
-  assert_eq!(format!("{}", output), format!("{}", TokenStream2::from(quote! {compile_error!{ "Bad configuration section; found ow2eihf when sigil or end of prelude expected" }} )));
+  assert_eq!(format!("{}", output), format!("{}", TokenStream2::from(quote! {::core::compile_error!{ "Bad configuration section; found ow2eihf when sigil or end of prelude expected" }} )));
 }
 
 
