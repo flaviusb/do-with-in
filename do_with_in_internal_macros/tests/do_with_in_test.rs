@@ -608,6 +608,19 @@ fn fn_test() {
   assert_eq!(a, 1);
 }
 
+#[test]
+fn mk_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(mk blah
+        $1 = $2 + $3;)
+    $(blah {let mut d} 3 4)
+    d += 1;
+  };
+  assert_eq!(d, 8);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

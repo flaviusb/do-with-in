@@ -2245,6 +2245,41 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
   
   Err((v, quote_spanned!{sp=> compile_error!{ "Input to function definition ended early." }}))
 }
+pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut variables = v.clone();
+  let mut stream = t.into_iter();
+  stream.next();
+  let mut var_num = 1;
+  for i in stream {
+    let sp = i.span();
+    if let TokenTree2::Group(grp) = i {
+      let ii = grp.stream();
+      variables.variables.insert(var_num.to_string(), (quote_spanned!{sp=> #ii}, false));
+    } else {
+      variables.variables.insert(var_num.to_string(), (quote_spanned!{sp=> #i}, false));
+    }
+    var_num += 1;
+  }
+  if let Some(stuff) = data {
+    return do_with_in_explicit2(stuff, c, variables);
+  } else {
+    //error
+    return todo!();
+  }
+}
+pub fn mkHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut variables = v.clone();
+  let mut it = t.into_iter();
+  it.next();
+  if let Some(TokenTree2::Ident(name)) = it.next() {
+    let mut ts = TokenStream2::new();
+    ts.extend(it);
+    variables.handlers.insert(name.to_string(), (Box::new(&handleMkHandlerRunner), Some(ts)));
+    return Ok((variables, quote!{ }));
+  } else {
+    todo!();
+  }
+}
 
 #[derive(Debug,Clone,PartialEq,Eq)]
 enum LetState {
@@ -2772,6 +2807,7 @@ pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handler
   m.insert(String::from("arithmetic"), ((Box::new(&arithmeticHandler), None)));
   m.insert(String::from("logic"), ((Box::new(&logicHandler), None)));
   m.insert(String::from("fn"), ((Box::new(&fnHandler), None)));
+  m.insert(String::from("mk"), ((Box::new(&mkHandler), None)));
   m.insert(String::from("quote"), ((Box::new(&quote), None)));
   m.insert(String::from("unquote"), ((Box::new(&unquote), None)));
   m.insert(String::from("escape"), ((Box::new(&escape), None)));
