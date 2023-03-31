@@ -23,6 +23,8 @@ use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::fmt::format;
 
+use bimap::BiMap;
+
 #[derive(Debug,Copy,Clone,PartialEq,Eq)]
 pub enum Sigil {
   Dollar,
@@ -2107,13 +2109,20 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
           let mut defaults_by_declaration_position: Vec<Option<TokenStream2>> = Vec::new();
           let mut thunks_by_invocation_position: Vec<Option<TokenStream2>> = Vec::new();
           // The inner and outer names index into defaults_by_position, which is our 'root list of args'
-          let mut inner_names: bimap::BiMap<usize, String> = bimap::BiMap::<usize, String>::new();
-          let mut outer_names: bimap::BiMap<usize, String> = bimap::BiMap::<usize, String>::new();
+          let mut inner_names: BiMap<usize, String> = BiMap::<usize, String>::new();
+          let mut outer_names: BiMap<usize, String> = BiMap::<usize, String>::new();
           // Once we have all the declaration site stuff done, we populate the thunks_by_invocation_position
           // and then process them.
           // Thunks get run in an environment built up of things invoked to the left of them using the external names.
           // Defaults get run in an environment built up of things defined to the left of them using the internal names.
           // We have a list of internal/external names with assigned values
+          // We want to allow 'lazy defaults' - that is, stuff like
+          // $(fn save(file_base, file_extension=".bak", file_name={$(concat $file_base $file_extension)}) {...})
+          // As long as $file_base is only used in file_name, this will error out ~ correctly when no value is specified
+          // for file_base or file_name. Eg
+          // $(save ()) ⇒ compile_error!{ "No such variable: file_base defined." }
+          // $(save (file_name="backup.sav")) ⇒ success, file saved as "backup.sav"
+          // $(save (file_base="savefile")) ⇒ success, file saved as "savefile.bak"
           // The order of processing is...
           let mut call_site_stream = t.clone().into_iter();
           call_site_stream.next(); // The function invocation token
