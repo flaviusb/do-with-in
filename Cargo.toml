@@ -14,7 +14,7 @@ repository = "https://github.com/flaviusb/do-with-in"
 proc-macro = true
 
 [dev-dependencies]
-typed-html = { git = "https://github.com/bodil/typed-html" }
+axohtml = "0.5"
 
 [[example]]
 name = "typed-html"

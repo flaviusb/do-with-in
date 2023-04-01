@@ -2,8 +2,8 @@
 extern crate do_with_in_internal_macros;
 
 use do_with_in::*;
-use typed_html::html;
-use typed_html::dom::DOMTree;
+use axohtml::html;
+use axohtml::dom::DOMTree;
 fn main() {
   do_with_in!{
     sigil: ~
