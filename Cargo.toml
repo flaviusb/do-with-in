@@ -13,6 +13,12 @@ repository = "https://github.com/flaviusb/do-with-in"
 [lib]
 proc-macro = true
 
+[dev-dependencies]
+typed-html = { git = "https://github.com/bodil/typed-html" }
+
+[[example]]
+name = "typed-html"
+
 [workspace]
 members = ["do_with_in_base", "do_with_in_internal_macros",]
 
