@@ -10,5 +10,4 @@ But ultimately, this package was made to allow for a specific kind of refactorin
 
 ## Maybe an example?
 
-...
-
+There is an example of the use of `do_with_in!` for use site metaprogramming here: `examples/typed-html.rs`, and the tests at `do_with_in_internal_macros/tests/do_with_in_test.rs` are the closest I have at the moment to documenting how to use the various functionalities provided.
