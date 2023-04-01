@@ -21,7 +21,8 @@ use std::marker::PhantomData;
 
 use std::collections::HashMap;
 use std::fmt::format;
-use do_with_in_base::*;
-#[macro_use] use do_with_in_internal_macros::*;
+pub use do_with_in_base::*;
+
+pub use do_with_in_internal_macros::do_with_in;
 
 

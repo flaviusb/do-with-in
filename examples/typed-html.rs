@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate do_with_in_internal_macros;
+extern crate do_with_in;
 
 use do_with_in::*;
 use axohtml::html;

@@ -11,7 +11,6 @@ homepage = "https://github.com/flaviusb/do-with-in"
 repository = "https://github.com/flaviusb/do-with-in"
 
 [lib]
-proc-macro = true
 
 [dev-dependencies]
 axohtml = "0.5"
