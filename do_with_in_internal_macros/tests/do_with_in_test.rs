@@ -621,6 +621,83 @@ fn mk_test() {
   assert_eq!(d, 8);
 }
 
+#[test]
+fn mk_test2_stalls() {
+  #[derive(Clone, Copy, Debug)]
+  pub struct Mem {
+    pub mem: [u8; 512],
+    pub stalls: [bool; 512],
+  }
+  pub type Addr = usize;
+  pub type Imm8 = u8;
+  pub fn stall(addr: Addr, it: &Mem) -> bool {
+    it.stalls[addr]
+  }
+  pub mod chip {
+    pub mod Pipeline {
+      pub mod MainDecode {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum Instruction {
+          Nop(Instructions::Nop),
+          AddU(Instructions::AddU),
+        }
+        pub mod Instructions {
+          #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+          pub struct Nop {}
+
+          #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+          pub struct AddU {
+            pub len: u8, pub l: usize, pub r: usize, pub out: usize,
+          }
+        }
+      }
+    }
+  }
+  type Progress = u32;
+
+  #[derive(Clone, Debug, PartialEq, Eq)]
+  enum Status {
+    Blocked(chip::Pipeline::MainDecode::Instruction, Vec<Addr>),
+    Running(chip::Pipeline::MainDecode::Instruction, Progress),
+  }
+  do_with_in!{
+    sigil: $
+    do
+    $(mk stall
+        $instruction_location::$instruction_enum::$1($instruction_location::$instruction_structs::$1{$2}) => {
+          let mut blocked: Vec<Addr> = Vec::new();
+          $(let arms = {{if stall($test, mem) {
+            blocked.push($test);
+          }}})
+          $(array map true test $arms $3)
+          if blocked.len() > 0 {
+            Status::Blocked(inst, blocked)
+          } else {
+            Status::Running(inst, 0)
+          }
+        },
+      )
+    $(let instruction_location = {chip::Pipeline::MainDecode})
+    $(let instruction_enum = {Instruction})
+    $(let instruction_structs = {Instructions})
+    fn check_stalls(inst: chip::Pipeline::MainDecode::Instruction, mem: &Mem) -> Status {
+      match inst {
+        $(stall Nop {} {{}})
+        $(stall AddU {len, l, r, out} {{[l] [r]}})
+      }
+    }
+  };
+  let mem = Mem { mem: [0u8; 512], stalls: [false; 512], };
+  let mut mem2 = mem.clone();
+  mem2.stalls[3] = true;
+  let mem2 = mem2.clone();
+  let inst1 = chip::Pipeline::MainDecode::Instruction::Nop(chip::Pipeline::MainDecode::Instructions::Nop{});
+  let inst2 = chip::Pipeline::MainDecode::Instruction::AddU(chip::Pipeline::MainDecode::Instructions::AddU{len: 0, l: 1, r: 2, out: 3});
+  let inst3 = chip::Pipeline::MainDecode::Instruction::AddU(chip::Pipeline::MainDecode::Instructions::AddU{len: 0, l: 2, r: 3, out: 4});
+  let stalls = [check_stalls(inst1, &mem), check_stalls(inst2, &mem),  check_stalls(inst3, &mem), check_stalls(inst1, &mem2), check_stalls(inst2, &mem2), check_stalls(inst3, &mem2)];
+  assert_eq!(stalls, [Status::Running(inst1, 0), Status::Running(inst2, 0), Status::Running(inst3, 0), Status::Running(inst1, 0), Status::Running(inst2, 0), Status::Blocked(inst3, vec!(3)), ]);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
