@@ -21,7 +21,11 @@ fn main() {
             {
               ~(item {"First item."})
               ~(item {"Second item."})
-              ~(item {"Third item."})})
+              ~(item {<em>"Third"</em> " item."})
+              ~(item {"Four. "
+                ~(list {
+                  ~(item {"Four sub one"})
+                  ~(item {"Four sub two"})})})})
         </body>
       </html>
     };
