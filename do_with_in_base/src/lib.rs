@@ -1530,10 +1530,14 @@ pub fn actually_escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables
   todo!()
 }
 pub fn escape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
+  let mut stream = t.into_iter();
+  stream.next(); // Skip over `escape`
+  let mut out = TokenStream2::new();
+  out.extend(stream);
   match c.escaping_style {
-    Escaping::None      => Ok((v, t)),
-    Escaping::Double    => actually_escape(c, v, data, quote!{ Double #t }),
-    Escaping::Backslash => actually_escape(c, v, data, quote!{ Backslash #t }),
+    Escaping::None      => Ok((v, out)),
+    Escaping::Double    => actually_escape(c, v, data, quote!{ Double #out }),
+    Escaping::Backslash => actually_escape(c, v, data, quote!{ Backslash #out }),
   }
 }
 
