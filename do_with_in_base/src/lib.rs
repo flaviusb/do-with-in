@@ -1485,6 +1485,27 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   }
   Ok((v, output))
 }
+
+/// A handler that lets the end user change which sigil the code inside it uses.
+///
+/// In a context where the sigil was `$` and you want to complicatedly generate a lot of macro_rules! code based on some table, you might use it like so
+/// ```rust,ignore
+/// // various other code
+/// $(withSigil %
+///     %(var
+///       table = {%(array mk ...)} // The multidimensional table data, which will be nested arrays
+///     )
+///     %(let
+///       pattern = {...} // The template inner macro code for each arm
+///       macro_rules_inner = { %(arg_pattern %(array ith get 0 %inner_table) %(array ith get 1 %inner_table)) => { %(inner_pattern %inner_table) } }
+///     )
+///     %(mk arg_pattern ($ %1:item, $ %(string_to_ident %(concat "real_" $(run %1))):item, $real:item, %(array map true item %pattern %(run %2))))
+///     %(mk macro_rules macro_rules! %(run %1) { %(array map true inner_table %(run %2) %(run %3)) })
+///     %(array each macro_rules %table))
+/// ```
+///
+/// It is also useful to import code that uses a different sigil; for example, if you have a shared header that defines some common handlers and data,
+/// but it is used in invocations that use different sigils, you can wrap the `import` in a `withSigil` matching the sigil the imported file uses.
 pub fn withSigilHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut temp = t.into_iter();
   let name_anchor = temp.next().span(); // Skip call
@@ -2799,7 +2820,27 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
   }
 }
 
-
+/// This function generates the default handler set.
+///
+/// Currently, the actually useful handlers consist of:
+///
+/// | Invoke as        | Defined by                | Note                                                                                                                                                                               |
+/// |------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+/// | if               | [ifHandler]               |                                                                                                                                                                                    |
+/// | let              | [letHandler]              | Internally, a wrapper around [assignmentInternalHandler]; do not interpolate on definition or use                                                                                  |
+/// | var              | [varHandler]              | Internally, a wrapper around [assignmentInternalHandler]; interpolate on definition and on use                                                                                     |
+/// | concat           | [concatHandler]           |                                                                                                                                                                                    |
+/// | naiveStringifier | [naiveStringifierHandler] |                                                                                                                                                                                    |
+/// | string_to_ident  | [string_to_identHandler]  |                                                                                                                                                                                   |
+/// | arithmetic       | [arithmeticHandler]       | You have to specify the type of the number eg i8, usize, f64                                                                                                                       |
+/// | logic            | [logicHandler]            | Sublanguage: nesting with parenthesis; logic ops ⌜&⌝, ⌜\|⌝, ⌜^⌝, ⌜=⌝, unary ⌜!⌝, ⌜true⌝, ⌜false⌝; numeric comparisons with numbers ⌜>⌝, ⌜>=⌝, ⌜=⌝, ⌜<=⌝, ⌜<⌝, ⌜!=⌝                 |
+/// | mk               | [mkHandler]               | A simple way to define new handlers at the use site                                                                                                                                |
+/// | quote            | [quote][quote()]          | In the lisp sense; renders the argument inert                                                                                                                                      |
+/// | unquote          | [unquote]                 | In the lisp sense; renders the argument ert                                                                                                                                        |
+/// | run              | [run]                     |                                                                                                                                                                                    |
+/// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
+/// | import           | [importHandler]           | Basic file inclusion; path must be specified by quoted segments; special unquoted identier Base is used for the crate root; errors in included file will point at import statement |
+/// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, (Box<&Handler<T>>, Option<TokenStream2>)> = HashMap::new();
   m.insert(String::from("if"), ((Box::new(&ifHandler), None)));
@@ -2857,6 +2898,7 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
 
 type Thing<'a, T: StartMarker + Clone> = (Variables<'a, T>, TokenStream2);
 type StageResult<'a, T: StartMarker + Clone> = std::result::Result<Thing<'a, T>, Thing<'a, T>>;
+
 
 pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> StageResult<'a, T> {
   let mut err = false;
