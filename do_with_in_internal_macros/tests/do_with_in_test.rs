@@ -698,6 +698,23 @@ fn mk_test2_stalls() {
   assert_eq!(stalls, [Status::Running(inst1, 0), Status::Running(inst2, 0), Status::Running(inst3, 0), Status::Running(inst1, 0), Status::Running(inst2, 0), Status::Blocked(inst3, vec!(3)), ]);
 }
 
+#[test]
+fn mk_test_noclobber_nested() {
+  do_with_in!{
+    sigil: $
+    do
+    let mut g = 4;
+    $(mk blah
+        $(run $1) = $(run $2) + $(run $3))
+    $(blah {let mut d} {{$(blah g 1 {2; g})}} 4);
+    $(mk simple $1 $3 $2)
+    $(blah {$(simple let f mut)} g d);
+    d += 1;
+  };
+  assert_eq!(d, 8);
+  assert_eq!(f, 10);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{

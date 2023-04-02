@@ -2275,7 +2275,11 @@ pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<
   let mut stream = t.into_iter();
   stream.next();
   let mut var_num = 1;
+  let mut restore_args: Vec<(String, (TokenStream2, bool))> = Vec::new();
   for i in stream {
+    if let Some(value) = variables.variables.remove(&var_num.to_string()) {
+      restore_args.push((var_num.to_string(), value));
+    }
     let sp = i.span();
     if let TokenTree2::Group(grp) = i {
       let ii = grp.stream();
@@ -2286,7 +2290,15 @@ pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<
     var_num += 1;
   }
   if let Some(stuff) = data {
-    return do_with_in_explicit2(stuff, c, variables);
+    let it = do_with_in_explicit2(stuff, c, variables);
+    if let Ok((mut new_var, out)) = it {
+      for (k, v) in restore_args.into_iter() {
+        new_var.variables.insert(k, v);
+      }
+      return Ok((new_var, out));
+    } else {
+      return it;
+    }
   } else {
     //error
     return todo!();
@@ -2899,7 +2911,28 @@ pub fn do_with_in_explicit<'a, T: StartMarker + Clone>(t: TokenStream2, c: Confi
 type Thing<'a, T: StartMarker + Clone> = (Variables<'a, T>, TokenStream2);
 type StageResult<'a, T: StartMarker + Clone> = std::result::Result<Thing<'a, T>, Thing<'a, T>>;
 
+#[cfg(feature = "doc-kludge")]
+macro_rules! bleh {
+  () => {
+    ""
+  }
+}
 
+#[cfg(not(feature = "doc-kludge"))]
+macro_rules! bleh {
+  () => {
+r" The function used to actually run a stage.
+
+ The tokens in `t` are run, using sigils and so on specified in `c` and variables and handlers specified in `v`.
+ This can be used directly inside a proc_macro to give it the features of the `do_with_in!` proc_macro (defined in the crate `do-with-in-internal-macros`); that proc_macro is in fact
+ essentially a thin wrapper around [do_with_in_internal], which is a configuration parsing wrapper around this function. If you are
+ using it this way, you can also change the default variables and handlers which are available by passing in your own `v`.
+ [genericDefaultHandlers] gives a list of the default handlers, and the source of that function shows how to create the handlers;
+ [Variables] implements `Default`, so you can easily get a 'batteries included' version to extend."
+  }
+}
+
+#[doc = bleh!()]
 pub fn do_with_in_explicit2<'a, T: StartMarker + Clone>(t: TokenStream2, c: Configuration<T>, v: Variables<'a, T>) -> StageResult<'a, T> {
   let mut err = false;
   let mut output = TokenStream2::new();
