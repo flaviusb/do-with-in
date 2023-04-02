@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Justin (:flaviusb) Marsh <justin.marsh@flaviusb.net>"]
 description = "A template language for Rust metaprogramming using partial staging."
-license = "GPL-3.0"
-#readme = "README.md"
+license = "GPL-3.0-only"
+readme = "README.md"
 #license-file = "LICENSE"
 homepage = "https://github.com/flaviusb/do-with-in"
 repository = "https://github.com/flaviusb/do-with-in"
+keywords = ["metaprogramming", "templates"]
 
 [lib]
 
