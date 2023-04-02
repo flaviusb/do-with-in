@@ -894,8 +894,8 @@ impl<T: StartMarker + Clone> Configuration<T> {
 
 #[derive(Clone)]
 pub struct Variables<'a, T: StartMarker + Clone> {
-  handlers:    Handlers<'a, T>,
-  variables:   HashMap<String, (TokenStream2, bool)>,
+  pub handlers:    Handlers<'a, T>,
+  pub variables:   HashMap<String, (TokenStream2, bool)>,
 }
 
 impl<'a, T: 'static + StartMarker + Clone> ToTokens for Variables<'a, T> {

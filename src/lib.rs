@@ -40,7 +40,10 @@ use std::fmt::format;
 ///
 /// The tokens in `t` are run, using sigils and so on specified in `c` and variables and handlers specified in `v`.
 /// This can be used directly inside a proc_macro to give it the features of [do_with_in]; that proc_macro is in fact
-/// essentially a thin wrapper around [do_with_in_internal], which is a configuration parsing wrapper around this.
+/// essentially a thin wrapper around [do_with_in_internal], which is a configuration parsing wrapper around this function. If you are
+/// using it this way, you can also change the default variables and handlers which are available by passing in your own `v`.
+/// [genericDefaultHandlers] gives a list of the default handlers, and the source of that function shows how to create the handlers;
+/// [Variables] implements `Default`, so you can easily get a 'batteries included' version to extend.
 #[doc(inline)]
 pub use do_with_in_base::do_with_in_explicit2;
 
