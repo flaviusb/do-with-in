@@ -43,38 +43,51 @@ impl Parse for Fatuous {
   }
 }
 
+#[cfg(feature = "doc-kludge")]
+macro_rules! bleh {
+  () => {
+    ""
+  }
+}
 
+#[cfg(not(feature = "doc-kludge"))]
+macro_rules! bleh {
+  () => {
+    concat!(
+"This is the proc_macro most users of this crate will use.\n",
+"\n",
+" There is front matter, which can define the sigil and escaping style. Escaping doesn't actually do anything yet though.\n",
+" Then `do`, then after that is where the metaprogramming can happen.\n",
+"\n",
+" In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers.\n",
+" Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with `let` or `var`.\n",
+" Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier.\n",
+"\n",
+" For example, in the following code the sigil is `$`, `$correction_factor` is a normal variable, `$1`, `$2`, and `$3` are special variables set inside the `blah` handler,\n",
+" and `$(let ...)`, `$(mk ...)` and `$(blah ...)` are all handlers.\n",
+"\n",
+" ```rust\n",
+" # use do_with_in_internal_macros::do_with_in;\n",
+" # fn main() {\n",
+" do_with_in!{\n",
+"    sigil: $\n",
+"    do\n",
+"    $(let correction_factor = {(-1)})\n",
+"    $(mk blah\n",
+"        $1 = $2 + $3 + $correction_factor;)\n",
+"    $(blah {let mut d} 3 4)\n",
+"    d += 1;\n",
+"    let correction_factor = $correction_factor;\n",
+"  };\n",
+"  assert_eq!(d, 8 + correction_factor);\n",
+" # }\n",
+" ```\n",
+"\n",
+)
+  }
+}
 
-/// This is the proc_macro most users of this crate will use.
-///
-/// There is front matter, which can define the sigil and escaping style. Escaping doesn't actually do anything yet though.
-/// Then `do`, then after that is where the metaprogramming can happen.
-///
-/// In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers.
-/// Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with `let` or `var`.
-/// Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier.
-///
-/// For example, in the following code the sigil is `$`, `$correction_factor` is a normal variable, `$1`, `$2`, and `$3` are special variables set inside the `blah` handler,
-/// and `$(let ...)`, `$(mk ...)` and `$(blah ...)` are all handlers.
-///
-/// ```rust
-/// # use do_with_in_internal_macros::do_with_in;
-/// # fn main() {
-/// do_with_in!{
-///    sigil: $
-///    do
-///    $(let correction_factor = {(-1)})
-///    $(mk blah
-///        $1 = $2 + $3 + $correction_factor;)
-///    $(blah {let mut d} 3 4)
-///    d += 1;
-///    let correction_factor = $correction_factor;
-///  };
-///  assert_eq!(d, 8 + correction_factor);
-/// # }
-/// ```
-///
-/// For a table of the currently useful handlers that are available by default, see genericDefaultHandlers (from `do_with_in_base`, and reexported by `do_with_in`).
+#[doc = bleh!()]
 #[proc_macro]
 pub fn do_with_in(t: TokenStream) -> TokenStream {
   //let s = proc_macro::Span::call_site();

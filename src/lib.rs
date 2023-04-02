@@ -50,6 +50,37 @@ pub use do_with_in_base::do_with_in_explicit2;
 #[doc(inline)]
 pub use do_with_in_base::*;
 
+
+/// This is the proc_macro most users of this crate will use.
+///
+/// There is front matter, which can define the sigil and escaping style. Escaping doesn't actually do anything yet though.
+/// Then `do`, then after that is where the metaprogramming can happen.
+///
+/// In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers.
+/// Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with `let` or `var`.
+/// Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier.
+///
+/// For example, in the following code the sigil is `$`, `$correction_factor` is a normal variable, `$1`, `$2`, and `$3` are special variables set inside the `blah` handler,
+/// and `$(let ...)`, `$(mk ...)` and `$(blah ...)` are all handlers.
+///
+/// ```rust
+/// # use do_with_in_internal_macros::do_with_in;
+/// # fn main() {
+/// do_with_in!{
+///    sigil: $
+///    do
+///    $(let correction_factor = {(-1)})
+///    $(mk blah
+///        $1 = $2 + $3 + $correction_factor;)
+///    $(blah {let mut d} 3 4)
+///    d += 1;
+///    let correction_factor = $correction_factor;
+///  };
+///  assert_eq!(d, 8 + correction_factor);
+/// # }
+/// ```
+///
+/// For a table of the currently useful handlers that are available by default, see [genericDefaultHandlers].
 #[doc(inline)]
 pub use do_with_in_internal_macros::do_with_in;
 
