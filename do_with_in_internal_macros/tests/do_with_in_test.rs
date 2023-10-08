@@ -262,6 +262,28 @@ fn basic_logic_arithmetic_test() {
 }
 
 #[test]
+fn basic_logic_string_equality_test() {
+  do_with_in!{
+    sigil: #
+    do
+    let aa = #(logic eq_str "a" "a");
+    let ab = #(logic eq_str "a" "b");
+    let bb = #(logic eq_str "b" "b");
+    let cc = #(logic eq_str "thing" "thing");
+    #(let dd = { "d" "d" })
+    #(let de = { "d" "e" })
+    let dd = #(logic eq_str #dd);
+    let de = #(logic eq_str #de);
+  }
+  assert_eq!(aa, true);
+  assert_eq!(ab, false);
+  assert_eq!(bb, true);
+  assert_eq!(cc, true);
+  assert_eq!(dd, true);
+  assert_eq!(de, false);
+}
+
+#[test]
 fn if_test() {
   do_with_in!{
     sigil: $

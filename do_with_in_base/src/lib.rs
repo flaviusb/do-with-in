@@ -1882,10 +1882,48 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
         "u32" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u32) },
         "i64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i64) },
         "u64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u64) },
+        "i128" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0i128) },
+        "u128" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0u128) },
         "f32" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0.0f32) },
         "f64" => { let mut lin = TokenStream2::new(); lin.extend(to_check); logicInternalNum(c, v, data, lin, 0.0f64) },
+        "eq_str" => {
+          // Check string equality
+          let left: String = match to_check.next() {
+            None => {
+              let msg = format!("logic eq_str with no arguments; expected two strings to compare.");
+              let sp = x.span();
+              return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+            },
+            Some(TokenTree2::Literal(x)) => {
+              x.to_string()
+            },
+            Some(y) => {
+              let msg = format!("Expected a string to compare, got {}.", y);
+              let sp = y.span();
+              return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+            },
+          };
+          let right: String = match to_check.next() {
+            None => {
+              let msg = format!("logic eq_str with only one argument; expected two strings to compare.");
+              let sp = x.span();
+              return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+            },
+            Some(TokenTree2::Literal(x)) => {
+              x.to_string()
+            },
+            Some(y) => {
+              let msg = format!("Expected a string to compare, got {}.", y);
+              let sp = y.span();
+              return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
+            },
+          };
+          let res = (left == right);
+          let sp = x.span();
+          return Ok((v, quote_spanned!{sp=> #res }));
+        },
         y => {
-          let msg = format!("Expected true, false, a literal number, or a numeric type specifier; got {}.", y);
+          let msg = format!("Expected true, false, a literal number, a numeric type specifier, or 'eq_str'; got {}.", y);
           let sp = x.span();
           return Err((v, quote_spanned!{sp=> compile_error!{ #msg }}));
         }
