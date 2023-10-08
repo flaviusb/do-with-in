@@ -2411,7 +2411,7 @@ macro_rules! q_or_unq {
           }
         } else {
           $item
-        };
+        }
   };
 }
 
