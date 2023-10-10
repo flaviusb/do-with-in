@@ -1855,7 +1855,7 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
     Some(TokenTree2::Punct(x)) if x.as_char() == '!' => {
       let mut rest = TokenStream2::new();
       rest.extend(to_check);
-      let (v, out) = logicInternalBool(c, v, data, rest)?;
+      let (v, out) = logicInternal(c, v, data, rest)?;
       return match out.into_iter().next() {
         Some(TokenTree2::Ident(x)) if x.to_string() == "true"  => Ok((v, quote!{ false })),
         Some(TokenTree2::Ident(x)) if x.to_string() == "false" => Ok((v, quote!{ true })),

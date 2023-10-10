@@ -284,6 +284,48 @@ fn basic_logic_string_equality_test() {
 }
 
 #[test]
+fn combination_logic_test() {
+  do_with_in!{
+    sigil: #
+    do
+    let aat = #(logic (eq_str "a" "a") & true);
+    let aaf = #(logic (eq_str "a" "a") & false);
+    let ab1 = #(logic (eq_str "a" "b") | (eq_str "c" "d"));
+    let ab2 = #(logic (eq_str "a" "b") & (eq_str "c" "d"));
+    let ab3 = #(logic (eq_str "a" "b") | (eq_str "c" "c"));
+    let ab4 = #(logic (eq_str "a" "b") & (eq_str "c" "c"));
+    let ab5 = #(logic (eq_str "a" "a") & (eq_str "c" "c"));
+    let ab6 = #(logic ! (eq_str "qa" "qb"));
+    let ab7 = #(logic ! (eq_str "qa" "qa"));
+    let bb = #(logic (2 > 1) & (eq_str "b" "b"));
+    let cc = #(logic (eq_str "thing" "thing") & (6 < 7));
+    #(let dd = { "d" "d" })
+    #(let de = { "d" "e" })
+    #(let num1 = { 5 })
+    #(let num2 = { 7 })
+    let dd1 = #(logic (eq_str #dd) & (#num1 > #num2));
+    let dd2 = #(logic (eq_str #dd) & (#num1 < #num2));
+    let de1 = #(logic (eq_str #de) & (#num1 > #num2));
+    let de2 = #(logic (eq_str #de) & (#num1 < #num2));
+  }
+  assert_eq!(aat, true);
+  assert_eq!(aaf, false);
+  assert_eq!(ab1, false);
+  assert_eq!(ab2, false);
+  assert_eq!(ab3, true);
+  assert_eq!(ab4, false);
+  assert_eq!(ab5, true);
+  assert_eq!(ab6, true);
+  assert_eq!(ab7, false);
+  assert_eq!(bb, true);
+  assert_eq!(cc, true);
+  assert_eq!(dd1, false);
+  assert_eq!(dd2, true);
+  assert_eq!(de1, false);
+  assert_eq!(de2, false);
+}
+
+#[test]
 fn if_test() {
   do_with_in!{
     sigil: $
