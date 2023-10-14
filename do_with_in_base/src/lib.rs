@@ -2075,7 +2075,7 @@ macro_rules! getCode {
     };
     let $cnew = Configuration::<T> {
       file: Some($path.display().to_string()),
-      ..$c
+      ..$c.clone()
     };
   };
 }
@@ -2463,6 +2463,13 @@ pub fn markerHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   Ok((v, quote!{}))
 }
 
+/// Call as $(runMarkers $path => "name of marker to run") to run only named markers in the file at $path
+/// Call as $(runMarkers $path) to run all markers in the file at $path
+/// If $path is empty, it will try to point to the current file (there are limitations here until some RFCs land)
+/// Named markers are embedded as $(marker "$name" => ...)
+/// Unnamed markers are embedded as $(marker => ...)
+/// Markers evaluate to nothing when run normally; the code in the ... is run and the environment is captured when run via runMarkers
+/// This gives you a way to (for example) set variables or define new handlers in one part of your source file, and use them in other invocations of do_with_in within the same source file
 pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
   // If we are running only a specific marker, this will have been called with $(runMarkers $path => "name of marker to run")
@@ -2494,8 +2501,75 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   };
   // The file is in `tokens`; so we go over the file to find instances of `$(marker {...})` and run all the `...`
   // We use c.sigil to figure out which symbol we should be looking for for $
-  let tok: Vec<TokenTree2> = Vec::from_iter(stream);
-  Ok((v, quote!{}))
+  let token_char = match c.clone().sigil {
+    Sigil::Dollar  => '$',
+    Sigil::Percent => '%',
+    Sigil::Hash    => '#',
+    Sigil::Tilde   => '~',
+  };
+  fn collectMarkers(t: TokenStream2, token_char: char) -> Vec<TokenStream2> {
+    let mut accumulator: Vec<TokenStream2> = Vec::new();
+    let mut expecting_variable = false;
+    for token in t.into_iter() {
+      match &token {
+        TokenTree2::Punct(punct_char) if punct_char.spacing() == proc_macro2::Spacing::Alone && punct_char.as_char() == token_char => {
+          if expecting_variable {
+            expecting_variable = false;
+          } else {
+            expecting_variable = true;
+          }
+        },
+        TokenTree2::Ident(ident) => {
+          if expecting_variable {
+            expecting_variable = false;
+          }
+        },
+        TokenTree2::Literal(lit) if expecting_variable => {
+          expecting_variable = false;
+        },
+        TokenTree2::Group(group) => {
+          if expecting_variable {
+            expecting_variable = false;
+            // Check whether the handler matches
+            let stream = group.stream();
+            if !stream.is_empty() {
+              let mut iter = stream.clone().into_iter();
+              if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
+                if first.to_string() == "marker" {
+                  // Here we check whether we have the right marker
+                }
+              }
+            }
+          } else {
+            accumulator.extend(collectMarkers(group.stream(), token_char).into_iter());
+          }
+        },
+        a => {
+          if expecting_variable {
+            expecting_variable = false;
+          }
+        },
+      }
+    }
+    return accumulator;
+  }
+  let markers = collectMarkers(tokens, token_char);
+  let mut v_out = v.clone();
+  for to_run in markers.into_iter() {
+    v_out = match do_with_in_explicit2(to_run.clone(), c.clone(), v_out.clone()) {
+      Ok((it, _)) => it,
+      Err((_, err)) => {
+        let sp = to_run.span();
+        let limit_text = match limit {
+          None => String::from("all markers"),
+          Some(x) => format!{"markers with limit {}", x},
+        };
+        let out_text = format!{"Encountered an error when processing {} for path {}.", limit_text, path.display()};
+        return Err((v, quote_spanned!{sp=> compiler_error!{ #out_text } #err}));
+      },
+    };
+  }
+  Ok((v_out, quote!{}))
 }
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();

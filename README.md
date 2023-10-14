@@ -68,7 +68,7 @@ This is the proc\_macro most users of this crate will use.
 
 There is front matter, which can define the sigil; the default is `$` if no sigil is defined. Then `do`, then after that is where the metaprogramming can happen.
 
-In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers. Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with let or var. Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier.
+In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers. Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with let or var. Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier. Everything else passes through the macro unchanged.
 
 ## The Environment
 
