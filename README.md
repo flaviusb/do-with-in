@@ -13,16 +13,22 @@ This crate lets you run code at compile time to produce the tokens other proc_ma
 - [Install](#install)
 - [Usage](#usage)
 - [API](#api)
-- [Built-in Handlers](#built-in-handlers)
+- [The Environment](#the-environment)
+- [Handlers](#handlers)
 - [License](#license)
 
 ## Background
 
 Ultimately, this package was made to allow for a specific kind of refactoring in my [fantasy cpu emulator](https://github.com/flaviusb/fantasy-cpu-emulator) that I could not achieve otherwise. Hopefully this will prove useful to other people as well.
 
+
+This package was conceived to allow for a specific kind of refactoring in my [fantasy cpu emulator](https://github.com/flaviusb/fantasy-cpu-emulator) needed to make the code fold more and be easier to do experiments with; that project makes use of a fairly complex proc macro to do quick system emulator generation for experimentation with different system designs in a type safe and integrated way, replacing a huge amount of non-type safe and non-integrated ad hoc gnarly perl scripts and build system code generation. But refactoring things in the use site of giant proc macros is not something that Rust had a good story for, so I ended up having to write that story myself, leading to this crate.
+
+And while this can be used for some gnarly stuff like that, it turns out that it can also be used for simple code templating in ways that declarative macros struggle with too.
+
 ### Limitations
 
-We don't have true unquote-splicing, as that is more or less impossible in Rust.
+We don't have true unquote-splicing, as that is more or less impossible in Rust due to the nature of Rust's stage separation.
 
 ## Install
 
@@ -63,13 +69,17 @@ There is an example of the use of `do_with_in!` for use site metaprogramming her
 
 This is the proc\_macro most users of this crate will use.
 
-There is front matter, which can define the sigil. Then `do`, then after that is where the metaprogramming can happen.
+There is front matter, which can define the sigil; the default is `$` if no sigil is defined. Then `do`, then after that is where the metaprogramming can happen.
 
 In the metaprogramming section, variables are identifiers with a sigil prepended. You can create and assign to them with `let` and `var` handlers. Numbers with a sigil prepended are special variables that can be set inside a handler; you cannot assign to them with let or var. Brackets with a sigil prepended start a handler invocation; the handler invoked will be the first token inside the brackets, which must be an identifier.
 
-## Built-In Handlers
+## The Environment
 
-See [`fn.genericDefaultHandlers`][] for the full list of built-in handlers.
+## Handlers
+
+### Default Handlers
+
+If you are using `do_with_in!` directly, the environment will be prepopulated with a set of default handlers to make it a 'batteries included' experience. See [`fn.genericDefaultHandlers`][] for the list of documented default handlers.
 
 [`fn.genericDefaultHandlers`]: https://docs.rs/do-with-in/0.1.1/do_with_in/fn.genericDefaultHandlers.html
 
@@ -137,4 +147,4 @@ A `file:` hint can be included in the front matter to allow import to use a rela
 
 [GPL-3.0-only © flaviusb](https://spdx.org/licenses/GPL-3.0-only.html).
 
-SEE LICENSE IN [LICENSE](../LICENSE) file.
+SEE LICENSE IN [LICENSE](./LICENSE) file.
