@@ -19,9 +19,6 @@ This crate lets you run code at compile time to produce the tokens other proc_ma
 
 ## Background
 
-Ultimately, this package was made to allow for a specific kind of refactoring in my [fantasy cpu emulator](https://github.com/flaviusb/fantasy-cpu-emulator) that I could not achieve otherwise. Hopefully this will prove useful to other people as well.
-
-
 This package was conceived to allow for a specific kind of refactoring in my [fantasy cpu emulator](https://github.com/flaviusb/fantasy-cpu-emulator) needed to make the code fold more and be easier to do experiments with; that project makes use of a fairly complex proc macro to do quick system emulator generation for experimentation with different system designs in a type safe and integrated way, replacing a huge amount of non-type safe and non-integrated ad hoc gnarly perl scripts and build system code generation. But refactoring things in the use site of giant proc macros is not something that Rust had a good story for, so I ended up having to write that story myself, leading to this crate.
 
 And while this can be used for some gnarly stuff like that, it turns out that it can also be used for simple code templating in ways that declarative macros struggle with too.
