@@ -2507,7 +2507,7 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
     Sigil::Hash    => '#',
     Sigil::Tilde   => '~',
   };
-  fn collectMarkers(t: TokenStream2, token_char: char) -> Vec<TokenStream2> {
+  fn collectMarkers(t: TokenStream2, token_char: char, limit: Option<String>) -> Vec<TokenStream2> {
     let mut accumulator: Vec<TokenStream2> = Vec::new();
     let mut expecting_variable = false;
     for token in t.into_iter() {
@@ -2531,17 +2531,49 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
           if expecting_variable {
             expecting_variable = false;
             // Check whether the handler matches
-            let stream = group.stream();
+            let stream = group.clone().stream();
             if !stream.is_empty() {
               let mut iter = stream.clone().into_iter();
-              if let Some(TokenTree2::Ident(first)) = iter.next().clone() {
+              if let Some(TokenTree2::Ident(first)) = iter.next() {
                 if first.to_string() == "marker" {
                   // Here we check whether we have the right marker
+                  match limit.clone() {
+                    None => {
+                      match (iter.next(), iter.next()) {
+                        (Some(TokenTree2::Punct(x)), Some(TokenTree2::Punct(y))) if x.as_char() == '=' && y.as_char() == '>' => {
+                          let mut t = TokenStream2::new();
+                          t.extend(iter);
+                          accumulator.push(t);
+                        },
+                        (_, _) => {
+                          // Discard matchers with limits
+                        },
+                      }
+                    },
+                    Some(lim) => {
+                      match iter.next() {
+                        Some(TokenTree2::Literal(x)) if x.to_string() == lim => {
+                          iter.next();
+                          iter.next();
+                          let mut t = TokenStream2::new();
+                          t.extend(iter);
+                          accumulator.push(t);
+                        },
+                        _ => {
+                          // Discard non-matching matchers
+                        },
+                      }
+                    },
+                  }
+                } else {
+                  accumulator.extend(collectMarkers(group.stream(), token_char, limit.clone()).into_iter());
                 }
+              } else {
+                accumulator.extend(collectMarkers(group.stream(), token_char, limit.clone()).into_iter());
               }
             }
           } else {
-            accumulator.extend(collectMarkers(group.stream(), token_char).into_iter());
+            accumulator.extend(collectMarkers(group.stream(), token_char, limit.clone()).into_iter());
           }
         },
         a => {
@@ -2553,7 +2585,7 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
     }
     return accumulator;
   }
-  let markers = collectMarkers(tokens, token_char);
+  let markers = collectMarkers(tokens, token_char, limit.clone());
   let mut v_out = v.clone();
   for to_run in markers.into_iter() {
     v_out = match do_with_in_explicit2(to_run.clone(), c.clone(), v_out.clone()) {
@@ -2965,6 +2997,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
 /// | import           | [importHandler]           | Basic file inclusion; path must be specified by quoted segments; special unquoted identier Base is used for the crate root; errors in included file will point at import statement |
 /// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
+/// | marker           | [markerHandler]           | This handler is for embedding data in one invocation of do_with_in! in a way that can be used in other invocations.                                                                |
+/// | runMarkers       | [runMarkersHandler]       | This handler loads data into the environment from other invocations of do_with_in!.                                                                                                |
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, (Box<&Handler<T>>, Option<TokenStream2>)> = HashMap::new();
   m.insert(String::from("if"), ((Box::new(&ifHandler), None)));

@@ -779,6 +779,61 @@ fn mk_test_noclobber_nested() {
   assert_eq!(f, 10);
 }
 
+#[test]
+fn basic_marker_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(marker =>
+      $(let x = { 3 })
+      $(mk foo
+          let $1 = $x * $2;))
+    $(marker "first test" =>
+      $(let x = { 4 })
+      $(mk foo
+          let $1 = $x * $2;))
+    $(marker "second test" =>
+      $(let x = { 5 })
+      $(mk foo
+          let $1 = $x + $2;))
+    let g = 4;
+  };
+  assert_eq!(g, 4);
+}
+
+#[test]
+fn basic_runMarker_test() {
+  do_with_in!{
+    sigil: $
+    do
+    $(runMarkers Base "do_with_in_internal_macros" "tests" "do_with_in_test.rs")
+    $(foo g 2)
+  }
+  assert_eq!(g, 6);
+}
+
+#[test]
+fn basic_runMarker_test2() {
+  do_with_in!{
+    sigil: $
+    do
+    $(runMarkers Base "do_with_in_internal_macros" "tests" "do_with_in_test.rs" => "first test")
+    $(foo g 2)
+  }
+  assert_eq!(g, 8);
+}
+
+#[test]
+fn basic_runMarker_test3() {
+  do_with_in!{
+    sigil: $
+    do
+    $(runMarkers Base "do_with_in_internal_macros" "tests" "do_with_in_test.rs" => "second test")
+    $(foo g 2)
+  }
+  assert_eq!(g, 7);
+}
+
 /*#[test]
 fn for_test1() {
   do_with_in!{
