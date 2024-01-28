@@ -78,13 +78,13 @@ In the metaprogramming section, variables are identifiers with a sigil prepended
 
 If you are using `do_with_in!` directly, the environment will be prepopulated with a set of default handlers to make it a 'batteries included' experience. See [`fn.genericDefaultHandlers`][] for the list of documented default handlers.
 
-[`fn.genericDefaultHandlers`]: https://docs.rs/do-with-in/0.1.2/do_with_in/fn.genericDefaultHandlers.html
+[`fn.genericDefaultHandlers`]: https://docs.rs/do-with-in/0.1.3/do_with_in/fn.genericDefaultHandlers.html
 
 ### `let` & `var`
 
 Create and assign variables, identifiers with a prepended sigil. The difference between the two is that `let` does not interpolate during either variable definition or use, whereas `var` interpolates both.
 
-The value assigned to avariable defined with `let` will remain unchanged before it is used:
+The value assigned to a variable defined with `let` will remain unchanged before it is used:
 
     %(let bar = {let y = "bar"; })
     %bar
