@@ -1,6 +1,6 @@
 [package]
 name = "do-with-in-base"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Justin (:flaviusb) Marsh <justin.marsh@flaviusb.net>"]
 description = "A template language for Rust metaprogramming using partial staging."
