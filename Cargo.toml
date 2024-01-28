@@ -13,11 +13,12 @@ keywords = ["metaprogramming", "templates"]
 
 [lib]
 
-[dev-dependencies]
-axohtml = "0.5"
+[features]
+axo = ["dep:axohtml"]
 
 [[example]]
 name = "typed-html"
+required-features = ["axo"]
 
 [workspace]
 members = ["do_with_in_base", "do_with_in_internal_macros",]
@@ -28,3 +29,4 @@ syn = { version = "2.0", features = ["full", "visit", "fold", "extra-traits", "p
 proc-macro2 = "1.0"
 do-with-in-base = { path = "do_with_in_base", version = "0.1.2", features = ["doc-kludge"] }
 do-with-in-internal-macros = { path = "do_with_in_internal_macros", version = "0.1.2", features = ["doc-kludge"] }
+axohtml = { version = "0.5", optional = true }
