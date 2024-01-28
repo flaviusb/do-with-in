@@ -1467,6 +1467,22 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
             });
             output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
           },
+          a @ ("usize" | "usizeu") => {
+            let thing = if a == "usize" { proc_macro2::Literal::usize_suffixed } else { proc_macro2::Literal::usize_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, usize>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return Err((v, err.to_compile_error())),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
+          a @ ("isize" | "isizeu") => {
+            let thing = if a == "isize" { proc_macro2::Literal::isize_suffixed } else { proc_macro2::Literal::isize_unsuffixed };
+            let out = thing(match arithmeticInternal::<T, isize>(c.clone(), v.clone(), temp2) {
+              Ok(x) => x,
+              Err(err) => return Err((v, err.to_compile_error())),
+            });
+            output.extend(TokenStream2::from(TokenTree2::Literal(out)).into_iter());
+          },
           it => {
             let msg = format!("Expected number type (u64, i64, f64, etc), got {}.", it);
             let sp = var_token.span();
