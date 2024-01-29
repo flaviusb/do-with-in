@@ -1,6 +1,6 @@
 [package]
 name = "do-with-in-internal-macros"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Justin (:flaviusb) Marsh <justin.marsh@flaviusb.net>"]
 description = "A template language for Rust metaprogramming using partial staging."
@@ -20,4 +20,4 @@ doc-kludge = []
 quote = "1.0"
 syn = { version = "2.0", features = ["full", "visit", "fold", "extra-traits", "parsing", "proc-macro"] }
 proc-macro2 = "1.0"
-do-with-in-base = { path = "../do_with_in_base", version = "0.1.4" }
+do-with-in-base = { path = "../do_with_in_base", version = "0.1.5" }
