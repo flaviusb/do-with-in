@@ -110,6 +110,22 @@ fn arithmetic_test1() {
 }
 
 #[test]
+fn arithmetic_sizes_test() {
+  do_with_in!{
+    sigil: $
+    do
+    let size_u8_u64 = $(arithmetic u64 size_of u8);
+    let size_u8_i8 = $(arithmetic i8 size_of u8);
+    let size_usize_isize = $(arithmetic isize size_of usize);
+    let size_usize_isize_bits = $(arithmetic isize 8 * (size_of usize));
+  }
+  assert_eq!(size_u8_u64, 1u64);
+  assert_eq!(size_u8_i8, 1i8);
+  assert_eq!(size_usize_isize, 8isize);
+  assert_eq!(size_usize_isize_bits, 64isize);
+}
+
+#[test]
 fn mumble_test() {
   do_with_in!{
     sigil: ~

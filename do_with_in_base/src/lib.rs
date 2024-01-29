@@ -1223,15 +1223,61 @@ enum Operator {
   Division,
 }
 
-fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
-  let mut left: Option<N> = None;
+
+trait HoistAsFromUsize {
+  fn fromUsize(it: usize) -> Self;
+}
+
+macro_rules! mkHoistAsFromUsize {
+  ($from: ty) => {
+    impl HoistAsFromUsize for $from {
+      fn fromUsize(it: usize) -> Self {
+        it as $from
+      }
+    }
+  }
+}
+
+mkHoistAsFromUsize!(u8);
+mkHoistAsFromUsize!(i8);
+mkHoistAsFromUsize!(u16);
+mkHoistAsFromUsize!(i16);
+mkHoistAsFromUsize!(u32);
+mkHoistAsFromUsize!(i32);
+mkHoistAsFromUsize!(u64);
+mkHoistAsFromUsize!(i64);
+mkHoistAsFromUsize!(f32);
+mkHoistAsFromUsize!(f64);
+mkHoistAsFromUsize!(usize);
+mkHoistAsFromUsize!(isize);
+
+enum ArithmeticLeft<N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize> {
+  None,
+  Num(N),
+  GetSize,
+}
+
+macro_rules! mkSizeOf {
+  ($token: ident, $($cmd: literal, $it: ty),+) => {
+    match $token.clone() {
+      $(TokenTree2::Ident(ty) if ty.to_string() == $cmd => return Ok(N::fromUsize(std::mem::size_of::<$it>())),)+
+      it => {
+        let msg = format!("Expected the name of a primitive number type to get the size of, got {}", it);
+        return Err(syn::parse::Error::new_spanned($token, msg));
+      },
+    }
+  }
+}
+
+fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+  let mut left: ArithmeticLeft<N> = ArithmeticLeft::None;
   let mut operator: Option<Operator> = None;
   for token in t.clone().into_iter() {
     match left {
-      None => {
+      ArithmeticLeft::None => {
         left = match token.clone() {
           TokenTree2::Literal(lit) => {
-            Some(match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
+            ArithmeticLeft::Num(match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
               Ok(x) => match x.base10_parse::<N>() {
                 Ok(x)  => x,
                 Err(y) => {
@@ -1267,14 +1313,15 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
               },
             })
           },
-          TokenTree2::Group(grp) => Some(arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?),
+          TokenTree2::Group(grp) => ArithmeticLeft::Num(arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?),
+          TokenTree2::Ident(op) if op.to_string() == "size_of" => ArithmeticLeft::GetSize,
           it => {
             let msg = format!("Expected number, got {}", it);
             return Err(syn::parse::Error::new_spanned(token, msg));
           },
         }
       },
-      Some(num) => {
+      ArithmeticLeft::Num(num) => {
         match operator {
           None => {
             match token.clone() {
@@ -1297,7 +1344,7 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
                     return Err(syn::parse::Error::new_spanned(token, msg));
                   },
                 }
-                left = Some(num);
+                left = ArithmeticLeft::Num(num);
               },
               it => {
                 let msg = format!("Expected operator such as +, *, -, or /, got {}", it);
@@ -1350,7 +1397,7 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
                 return Err(syn::parse::Error::new_spanned(token, msg));
               },
             };
-            left = Some(match op {
+            left = ArithmeticLeft::Num(match op {
               Operator::Plus     => num + right,
               Operator::Times    => num * right,
               Operator::Minus    => num - right,
@@ -1360,14 +1407,40 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
           },
         }
       },
+      ArithmeticLeft::GetSize => {
+        mkSizeOf!(token, "u8", u8, "u16", u16, "u32", u32, "u64", u64, "i8", i8, "i16", i16, "i32", i32, "i64", i64, "f32", f32, "f64", f64, "usize", usize, "isize", isize)
+      },
     }
   }
   return match left {
-    Some(n) => Ok(n),
-    None    => Err(syn::parse::Error::new_spanned(t, "No numbers found.")),
+    ArithmeticLeft::Num(n) => Ok(n),
+    _    => Err(syn::parse::Error::new_spanned(t, "No numbers found.")),
   };
 }
 
+/// A handler for basic arithmetic
+/// 
+/// Because of a lack of type inference, you have to specify your desired return type at the start of any use of this handler.
+/// 
+/// Syntax is:
+/// - $type $command
+///
+/// where $type is one of u8, i8, u16, i16, u32, i32, u64, i64, f32, f64, usize, isize
+///
+/// where $val is one of
+/// -  $bracketed_command
+/// -  $number
+
+/// where $bracketed_command is one of
+/// - ( $command )
+///
+/// where $command is one of
+/// - $val + $val
+/// - $val - $val
+/// - $val * $val
+/// - $val / $val
+/// - size_of $type
+///   
 pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
