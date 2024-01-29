@@ -107,12 +107,22 @@ fn arithmetic_test1() {
     let m = $(concat "The number (mod 3): " $(arithmetic f64 ($z) % 3));
     let shl = $(arithmetic u64 10 < 2);
     let shr = $(arithmetic u64 10 > 2);
+    let and = $(arithmetic u64 22 & 34);
+    let xor = $(arithmetic u64 22 ^ 34);
+    let  or = $(arithmetic u64 22 | 34);
+    let not = $(arithmetic u64 not 22);
+    let no2 = $(arithmetic i8 not 22);
   }
   assert_eq!(x, 3);
   assert_eq!(n, "The number: 4.8f64");
   assert_eq!(m, "The number (mod 3): 1.7999999999999998f64");
   assert_eq!(shl, 2);
   assert_eq!(shr, 40);
+  assert_eq!(and, 2);
+  assert_eq!(xor, 52);
+  assert_eq!(or,  54);
+  assert_eq!(not, 18446744073709551593);
+  assert_eq!(no2, -23);
 }
 
 #[test]

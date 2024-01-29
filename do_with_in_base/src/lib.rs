@@ -1224,6 +1224,9 @@ enum Operator {
   Remainder,
   ShiftLeft,
   ShiftRight,
+  And,
+  Xor,
+  Or,
 }
 
 
@@ -1254,10 +1257,12 @@ mkHoistAsFromUsize!(f64);
 mkHoistAsFromUsize!(usize);
 mkHoistAsFromUsize!(isize);
 
+#[derive(PartialEq, Eq)]
 enum ArithmeticLeft<N: Copy + std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize + MaybeShiftable + std::fmt::Display> {
   None,
   Num(N),
   GetSize,
+  Not,
 }
 
 macro_rules! mkSizeOf {
@@ -1275,6 +1280,10 @@ macro_rules! mkSizeOf {
 trait MaybeShiftable: Sized {
   fn shl(self, right: Self) -> Option<Self>;
   fn shr(self, right: Self) -> Option<Self>;
+  fn and(self, right: Self) -> Option<Self>;
+  fn xor(self, right: Self) -> Option<Self>;
+  fn  or(self, right: Self) -> Option<Self>;
+  fn not(self) -> Option<Self>;
   const shiftable: bool;
 }
 
@@ -1288,6 +1297,18 @@ macro_rules! can_shift {
       fn shr(self, right: Self) -> Option<Self> {
         Some(self >> right)
       }
+      fn and(self, right: Self) -> Option<Self> {
+        Some(self & right)
+      }
+      fn xor(self, right: Self) -> Option<Self> {
+        Some(self ^ right)
+      }
+      fn  or(self, right: Self) -> Option<Self> {
+        Some(self | right)
+      }
+      fn not(self) -> Option<Self> {
+        Some(!self)
+      }
     }
   }
 }
@@ -1300,6 +1321,18 @@ macro_rules! cannot_shift {
         None
       }
       fn shr(self, right: Self) -> Option<Self> {
+        None
+      }
+      fn and(self, right: Self) -> Option<Self> {
+        None
+      }
+      fn xor(self, right: Self) -> Option<Self> {
+        None
+      }
+      fn  or(self, right: Self) -> Option<Self> {
+        None
+      }
+      fn not(self) -> Option<Self> {
         None
       }
     }
@@ -1324,7 +1357,8 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
   let mut operator: Option<Operator> = None;
   for token in t.clone().into_iter() {
     match left {
-      ArithmeticLeft::None => {
+      ArithmeticLeft::None | ArithmeticLeft::Not => {
+        let not = (left == ArithmeticLeft::Not);
         left = match token.clone() {
           TokenTree2::Literal(lit) => {
             ArithmeticLeft::Num(match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
@@ -1365,11 +1399,16 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
           },
           TokenTree2::Group(grp) => ArithmeticLeft::Num(arithmeticInternal::<T, N>(c.clone(), v.clone(), grp.stream())?),
           TokenTree2::Ident(op) if op.to_string() == "size_of" => ArithmeticLeft::GetSize,
+          TokenTree2::Ident(op) if op.to_string() == "not" => ArithmeticLeft::Not,
           it => {
             let msg = format!("Expected number, got {}", it);
             return Err(syn::parse::Error::new_spanned(token, msg));
           },
-        }
+        };
+        left = (if not { match left {
+          ArithmeticLeft::Num(x) => ArithmeticLeft::Num(x.not().unwrap()),
+          x => x,
+        } } else { left })
       },
       ArithmeticLeft::Num(num) => {
         match operator {
@@ -1397,6 +1436,15 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
                   },
                   '<' if punct.spacing() == proc_macro2::Spacing::Alone => {
                     operator = Some(Operator::ShiftRight);
+                  },
+                  '&' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::And);
+                  },
+                  '^' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Xor);
+                  },
+                  '|' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Or);
                   },
                   it   => {
                     let msg = format!("Expected operator such as +, *, -, /, %, >>, or <<, got {}", it);
@@ -1476,6 +1524,27 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
                   return Err(syn::parse::Error::new_spanned(token, msg));
                 },
               },
+              Operator::Xor => match num.xor(right) {
+                Some(n) => n,
+                None    => {
+                  let msg = format!("Tried to xor {} by {}; this does not work - xor only works on integral types.", num, right);
+                  return Err(syn::parse::Error::new_spanned(token, msg));
+                },
+              },
+              Operator::And => match num.and(right) {
+                Some(n) => n,
+                None    => {
+                  let msg = format!("Tried to and {} by {}; this does not work - and only works on integral types.", num, right);
+                  return Err(syn::parse::Error::new_spanned(token, msg));
+                },
+              },
+              Operator::Or => match num.or(right) {
+                Some(n) => n,
+                None    => {
+                  let msg = format!("Tried to or {} by {}; this does not work - shift only works on integral types.", num, right);
+                  return Err(syn::parse::Error::new_spanned(token, msg));
+                },
+              },
             }); //replace with: left = Some(result) 
             operator = None;
           },
@@ -1515,7 +1584,11 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 /// - $val - $val
 /// - $val * $val
 /// - $val / $val
-/// - $val % $val
+/// - $val % $val // Remainder
+/// - $val | $val // Binary Or
+/// - $val ^ $val // Binary Xor
+/// - $val & $val // Binary And
+/// - not $val
 /// - size_of $type
 ///   
 pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
