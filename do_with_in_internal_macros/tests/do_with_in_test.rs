@@ -104,9 +104,11 @@ fn arithmetic_test1() {
     let x = $(arithmetic u64 1 + 1 + 1);
     $(var z = {$(arithmetic f64 4 * 6 / (1 + 4))})
     let n = $(concat "The number: " $z);
+    let m = $(concat "The number (mod 3): " $(arithmetic f64 ($z) % 3));
   }
   assert_eq!(x, 3);
   assert_eq!(n, "The number: 4.8f64");
+  assert_eq!(m, "The number (mod 3): 1.7999999999999998f64");
 }
 
 #[test]

@@ -1221,6 +1221,7 @@ enum Operator {
   Times,
   Minus,
   Division,
+  Remainder,
 }
 
 
@@ -1251,7 +1252,7 @@ mkHoistAsFromUsize!(f64);
 mkHoistAsFromUsize!(usize);
 mkHoistAsFromUsize!(isize);
 
-enum ArithmeticLeft<N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize> {
+enum ArithmeticLeft<N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize> {
   None,
   Num(N),
   GetSize,
@@ -1269,7 +1270,7 @@ macro_rules! mkSizeOf {
   }
 }
 
-fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
   let mut left: ArithmeticLeft<N> = ArithmeticLeft::None;
   let mut operator: Option<Operator> = None;
   for token in t.clone().into_iter() {
@@ -1339,6 +1340,9 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
                   '/' if punct.spacing() == proc_macro2::Spacing::Alone => {
                     operator = Some(Operator::Division);
                   },
+                  '%' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::Remainder);
+                  },
                   it   => {
                     let msg = format!("Expected operator such as +, *, -, or /, got {}", it);
                     return Err(syn::parse::Error::new_spanned(token, msg));
@@ -1398,10 +1402,11 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
               },
             };
             left = ArithmeticLeft::Num(match op {
-              Operator::Plus     => num + right,
-              Operator::Times    => num * right,
-              Operator::Minus    => num - right,
-              Operator::Division => num / right,
+              Operator::Plus      => num + right,
+              Operator::Times     => num * right,
+              Operator::Minus     => num - right,
+              Operator::Division  => num / right,
+              Operator::Remainder => num % right,
             }); //replace with: left = Some(result) 
             operator = None;
           },
@@ -1441,6 +1446,7 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
 /// - $val - $val
 /// - $val * $val
 /// - $val / $val
+/// - $val % $val
 /// - size_of $type
 ///   
 pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
