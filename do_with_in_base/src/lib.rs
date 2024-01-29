@@ -1423,14 +1423,16 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
 /// Because of a lack of type inference, you have to specify your desired return type at the start of any use of this handler.
 /// 
 /// Syntax is:
-/// - $type $command
+/// - $output_specifier $command
+///
+/// where $output_specifier is either a $type, or if you want to generate a non-suffixed literal result token, a $type suffixed with 'u'
 ///
 /// where $type is one of u8, i8, u16, i16, u32, i32, u64, i64, f32, f64, usize, isize
 ///
 /// where $val is one of
 /// -  $bracketed_command
 /// -  $number
-
+///
 /// where $bracketed_command is one of
 /// - ( $command )
 ///
