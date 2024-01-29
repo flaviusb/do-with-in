@@ -1222,6 +1222,8 @@ enum Operator {
   Minus,
   Division,
   Remainder,
+  ShiftLeft,
+  ShiftRight,
 }
 
 
@@ -1252,7 +1254,7 @@ mkHoistAsFromUsize!(f64);
 mkHoistAsFromUsize!(usize);
 mkHoistAsFromUsize!(isize);
 
-enum ArithmeticLeft<N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize> {
+enum ArithmeticLeft<N: Copy + std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize + MaybeShiftable + std::fmt::Display> {
   None,
   Num(N),
   GetSize,
@@ -1270,7 +1272,54 @@ macro_rules! mkSizeOf {
   }
 }
 
-fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+trait MaybeShiftable: Sized {
+  fn shl(self, right: Self) -> Option<Self>;
+  fn shr(self, right: Self) -> Option<Self>;
+  const shiftable: bool;
+}
+
+macro_rules! can_shift {
+  ($it: ty) => {
+    impl MaybeShiftable for $it {
+      const shiftable: bool = true;
+      fn shl(self, right: Self) -> Option<Self> {
+        Some(self << right)
+      }
+      fn shr(self, right: Self) -> Option<Self> {
+        Some(self >> right)
+      }
+    }
+  }
+}
+
+macro_rules! cannot_shift {
+  ($it: ty) => {
+    impl MaybeShiftable for $it {
+      const shiftable: bool = false;
+      fn shl(self, right: Self) -> Option<Self> {
+        None
+      }
+      fn shr(self, right: Self) -> Option<Self> {
+        None
+      }
+    }
+  }
+}
+
+can_shift!(u8);
+can_shift!(i8);
+can_shift!(u16);
+can_shift!(i16);
+can_shift!(u32);
+can_shift!(i32);
+can_shift!(u64);
+can_shift!(i64);
+can_shift!(usize);
+can_shift!(isize);
+cannot_shift!(f32);
+cannot_shift!(f64);
+
+fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize + MaybeShiftable + std::fmt::Display>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
   let mut left: ArithmeticLeft<N> = ArithmeticLeft::None;
   let mut operator: Option<Operator> = None;
   for token in t.clone().into_iter() {
@@ -1343,8 +1392,14 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
                   '%' if punct.spacing() == proc_macro2::Spacing::Alone => {
                     operator = Some(Operator::Remainder);
                   },
+                  '>' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::ShiftLeft);
+                  },
+                  '<' if punct.spacing() == proc_macro2::Spacing::Alone => {
+                    operator = Some(Operator::ShiftRight);
+                  },
                   it   => {
-                    let msg = format!("Expected operator such as +, *, -, or /, got {}", it);
+                    let msg = format!("Expected operator such as +, *, -, /, %, >>, or <<, got {}", it);
                     return Err(syn::parse::Error::new_spanned(token, msg));
                   },
                 }
@@ -1402,11 +1457,25 @@ fn arithmeticInternal<T: StartMarker + Clone, N: std::str::FromStr + std::ops::A
               },
             };
             left = ArithmeticLeft::Num(match op {
-              Operator::Plus      => num + right,
-              Operator::Times     => num * right,
-              Operator::Minus     => num - right,
-              Operator::Division  => num / right,
-              Operator::Remainder => num % right,
+              Operator::Plus       => num + right,
+              Operator::Times      => num * right,
+              Operator::Minus      => num - right,
+              Operator::Division   => num / right,
+              Operator::Remainder  => num % right,
+              Operator::ShiftLeft  => match num.shl(right) {
+                Some(n) => n,
+                None    => {
+                  let msg = format!("Tried to shift left {} by {}; this does not work - shift only works on integral types.", num, right);
+                  return Err(syn::parse::Error::new_spanned(token, msg));
+                },
+              },
+              Operator::ShiftRight => match num.shr(right) {
+                Some(n) => n,
+                None    => {
+                  let msg = format!("Tried to shift right {} by {}; this does not work - shift only works on integral types.", num, right);
+                  return Err(syn::parse::Error::new_spanned(token, msg));
+                },
+              },
             }); //replace with: left = Some(result) 
             operator = None;
           },
