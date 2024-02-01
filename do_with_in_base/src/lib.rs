@@ -1561,36 +1561,41 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
   };
 }
 
-/// A handler for basic arithmetic
+/// A handler for basic arithmetic.
 /// 
 /// Because of a lack of type inference, you have to specify your desired return type at the start of any use of this handler.
 /// 
-/// Syntax is:
-/// - $output_specifier $command
+/// Syntax is: `$output_specifier $command`
 ///
-/// where $output_specifier is either a $type, or if you want to generate a non-suffixed literal result token, a $type suffixed with 'u'
+/// where `$output_specifier` is either a `$type`, or if you want to generate a non-suffixed literal result token, a `$type` suffixed with 'u'
 ///
-/// where $type is one of u8, i8, u16, i16, u32, i32, u64, i64, f32, f64, usize, isize
+/// where `$type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`, `usize`, `isize`
 ///
-/// where $val is one of
-/// -  $bracketed_command
-/// -  $number
+/// where `$command` is one of
+/// - `$val + $val`
+/// - `$val - $val`
+/// - `$val * $val`
+/// - `$val / $val`
+/// - `$val % $val // Remainder`
+/// - `$val | $val // Binary Or`
+/// - `$val ^ $val // Binary Xor`
+/// - `$val & $val // Binary And`
+/// - `not $val`
+/// - `size_of $type`
+/// 
+/// where `$val` is one of
+/// -  `$bracketed_command`
+/// -  `$number`
 ///
-/// where $bracketed_command is one of
-/// - ( $command )
-///
-/// where $command is one of
-/// - $val + $val
-/// - $val - $val
-/// - $val * $val
-/// - $val / $val
-/// - $val % $val // Remainder
-/// - $val | $val // Binary Or
-/// - $val ^ $val // Binary Xor
-/// - $val & $val // Binary And
-/// - not $val
-/// - size_of $type
-///   
+/// where `$bracketed_command` is one of
+/// - `( $command )`
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// let x = $(arithmetic u64 1 + 1 + 1);
+/// assert_eq!(x, 3);
+/// ```
 pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
