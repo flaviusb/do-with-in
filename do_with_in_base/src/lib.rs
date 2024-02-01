@@ -2692,6 +2692,13 @@ macro_rules! q_or_unq {
   };
 }
 
+/// Embeds data in one invocation of `do_with_in!` in a way that can be used in other invocations.
+/// 
+/// To embed an unnamed marker, call the handler with `$(marker => ...)`. An optional marker name 
+/// can be set which can be used as a filter by `runMarkers`: `$(marker "$name" => ...)`
+/// 
+/// Markers evaluate to nothing when run normally; the code in the `...` is only run - and the
+/// environment captured - when run via `runMarkers`.
 pub fn markerHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
@@ -2702,13 +2709,21 @@ pub fn markerHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   Ok((v, quote!{}))
 }
 
-/// Call as $(runMarkers $path => "name of marker to run") to run only named markers in the file at $path
-/// Call as $(runMarkers $path) to run all markers in the file at $path
-/// If $path is empty, it will try to point to the current file (there are limitations here until some RFCs land)
-/// Named markers are embedded as $(marker "$name" => ...)
-/// Unnamed markers are embedded as $(marker => ...)
-/// Markers evaluate to nothing when run normally; the code in the ... is run and the environment is captured when run via runMarkers
-/// This gives you a way to (for example) set variables or define new handlers in one part of your source file, and use them in other invocations of do_with_in within the same source file
+/// Loads data into the environment from other invocations of `do_with_in!`.
+///      
+/// Call as `$(runMarkers $path)` to run all markers in the file at `$path`. To run a specific named marker,
+/// call `$(runMarkers $path => "name of marker to run")`.
+/// 
+/// If `$path` is empty, it will try to point to the current file (there are limitations here until some RFCs land).
+/// 
+/// See [`markerHandler`] for details on creating named and unnamed markers.
+/// 
+/// [`markerHandler`]: #method.markerHandler
+/// 
+/// Markers evaluate to nothing when run normally; the markers' embedded code is run, and the environment is captured,
+/// when run via `runMarkers`.
+/// This gives you a way to (for example) set variables or define new handlers in one part of your source file, and use
+/// them in other invocations of `do_with_in!` within the same source file.
 pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
   // If we are running only a specific marker, this will have been called with $(runMarkers $path => "name of marker to run")
