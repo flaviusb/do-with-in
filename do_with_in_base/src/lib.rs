@@ -2856,7 +2856,7 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
           Some(x) => format!{"markers with limit {}", x},
         };
         let out_text = format!{"Encountered an error when processing {} for path {}.", limit_text, path.display()};
-        return Err((v, quote_spanned!{sp=> compiler_error!{ #out_text } #err}));
+        return Err((v, quote_spanned!{sp=> compile_error!{ #out_text } #err}));
       },
     };
   }
