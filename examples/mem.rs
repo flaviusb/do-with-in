@@ -19,7 +19,7 @@ do_with_in!{
   $(mk mkFetch
       $(var N        = { $1 }
             WORDSIZE = { $2 })
-      $(var bump     = { $(if { $(logic $(arithmetic u64u (($N * $WORDSIZE) % (size_of u8 * 8))) = 0) } { 0 } { 1 }) } )
+      $(var bump     = { $(if { $(logic $(arithmetic u64u (($N * $WORDSIZE) % ((size_of u8) * 8))) = 0) } { 0 } { 1 }) } )
       $(var OUT      = { $(arithmetic usize (($N * $WORDSIZE) / ((size_of u8) * 8)) + $bump) })
 
       impl<const M: usize> Fetch<$N, $WORDSIZE, $OUT> for Mem<M> {
@@ -42,14 +42,18 @@ do_with_in!{
             // MEM_BLOCK < $WORDSIZE
             // We also have to handle wrapping around when ((ip + N) * WORDSIZE) > (MEM_SIZE * MEM_BLOCK)
             // We start at start_big shifted by start_small
-            todo!()
+            //todo!()
           //}); //[0; {$N * $WORDSIZE / std::mem::size_of::<u8>()}];
-          //out
+          out
         }
       }
   )
   $(mkFetch 2 4 1)
   $(mk mem_2_4 Fetch::<2, 4, 1>::fetch(&mut $1, $2))
+  $(mkFetch 1 4 1)
+  $(mk mem_1_4 Fetch::<1, 4, 1>::fetch(&mut $1, $2))
+  $(mkFetch 3 4 2)
+  $(mk mem_3_4 Fetch::<3, 4, 2>::fetch(&mut $1, $2))
 
   const MEMLEN: usize = 2usize.pow(12);
   fn main() {
@@ -59,8 +63,12 @@ do_with_in!{
     let ip: usize = 0;
     let q = Fetch::<2, 4, 1>::fetch(&mut m, ip);
     let r = $(mem_2_4 m 1);
+    let s = $(mem_1_4 m 1);
+    let t = $(mem_3_4 m 1);
     println!("ip = 0: {:?}", q);
     println!("ip = 1: {:?}", r);
+    println!("ip = 1: {:?}", s);
+    println!("ip = 1: {:?}", t);
   }
 
 }
