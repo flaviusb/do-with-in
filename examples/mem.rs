@@ -30,21 +30,16 @@ do_with_in!{
       impl<const M: usize> Fetch<$N, $WORDSIZE, $OUT> for Mem<M> {
         type MEM_BLOCK = usize;
         const MEM_SIZE: usize = M;
-      //const OUT: usize = (($N * $WORDSIZE) as usize).div_ceil(std::mem::size_of::<Self::MEM_BLOCK>()); //(N * WORDSIZE).div_ceil(std::mem::size_of::<Self::MEM_BLOCK>());
         fn fetch(&self, ip: usize) -> [u8; $OUT] {
-          // We currently hardcode mem as
-          // special case for when WORDSIZE = 8
+          // We currently hardcode mem as u8
+          // There are several possibilities
+          // The easy case: MEM_BLOCK = $WORDSIZE = u8
+          // MEM_BLOCK > $WORDSIZE
+          // MEM_BLOCK < $WORDSIZE
+          // We also have to handle wrapping around when ((ip + N) * WORDSIZE) > (MEM_SIZE * MEM_BLOCK)
+          // We start at start_big shifted by start_small
           $(mk bit ((self.mem[((ip + $1) * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>()] << (((ip + $1) * $WORDSIZE) % std::mem::size_of::<Self::MEM_BLOCK>())) & (0b11111111)) as u8,)
           let out: [u8; $OUT] = [ $(var x = {{0 $OUT bit}}) $(array each foreach [ $x ]) ];
-          //let out: [u8; {(($N * $WORDSIZE) as usize).div_ceil(std::mem::size_of::<Self::MEM_BLOCK>())}] = core::array::from_fn(|i| {
-            // There are several possibilities
-            // The easy case: MEM_BLOCK = $WORDSIZE = u8
-            // MEM_BLOCK > $WORDSIZE
-            // MEM_BLOCK < $WORDSIZE
-            // We also have to handle wrapping around when ((ip + N) * WORDSIZE) > (MEM_SIZE * MEM_BLOCK)
-            // We start at start_big shifted by start_small
-            //todo!()
-          //}); //[0; {$N * $WORDSIZE / std::mem::size_of::<u8>()}];
           out
         }
       }
