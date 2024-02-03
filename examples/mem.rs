@@ -34,12 +34,7 @@ do_with_in!{
         fn fetch(&self, ip: usize) -> [u8; $OUT] {
           // We currently hardcode mem as
           // special case for when WORDSIZE = 8
-          let start_big = (ip * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>();
-          let start_small = (ip * $WORDSIZE) % std::mem::size_of::<Self::MEM_BLOCK>();
-          let end_big = ((ip + $N) * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>();
-          let end_small = ((ip + $N) * $WORDSIZE) % std::mem::size_of::<Self::MEM_BLOCK>();
-          let num_big = ($N * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>();
-          $(mk bit $1,)
+          $(mk bit ((self.mem[((ip + $1) * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>()] << (((ip + $1) * $WORDSIZE) % std::mem::size_of::<Self::MEM_BLOCK>())) & (0b11111111)) as u8,)
           let out: [u8; $OUT] = [ $(var x = {{0 $OUT bit}}) $(array each foreach [ $x ]) ];
           //let out: [u8; {(($N * $WORDSIZE) as usize).div_ceil(std::mem::size_of::<Self::MEM_BLOCK>())}] = core::array::from_fn(|i| {
             // There are several possibilities
@@ -68,17 +63,27 @@ do_with_in!{
     let mut m: Mem<MEMLEN> = Mem { mem: [0usize; MEMLEN], };
     m.mem[0] = 3;
     m.mem[1] = 999;
+    m.mem[2] = (1 << 63) - 1;
+    m.mem[3] = (1 << 63) - 1;
     let ip: usize = 0;
     let q = Fetch::<2, 4, 1>::fetch(&m, ip);
     let r = $(mem_2_4 m 1);
     let s = $(mem_1_4 m 1);
     let t = $(mem_3_4 m 1);
-    let u = $(mem_4_12 m 3);
+    let u = $(mem_4_12 m 0);
+    let v = $(mem_4_12 m 1);
+    let w = $(mem_4_12 m 2);
+    let y = $(mem_4_12 m 3);
+    let z = $(mem_4_12 m 4);
     println!("ip = 0: {:?}", q);
     println!("ip = 1: {:?}", r);
     println!("ip = 1: {:?}", s);
     println!("ip = 1: {:?}", t);
-    println!("ip = 3: {:?}", u);
+    println!("ip = 0: {:?}", u);
+    println!("ip = 1: {:?}", v);
+    println!("ip = 2: {:?}", w);
+    println!("ip = 3: {:?}", y);
+    println!("ip = 4: {:?}", z);
   }
 
 }
