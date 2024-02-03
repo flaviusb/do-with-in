@@ -2010,10 +2010,12 @@ enum NumOp {
 }
 
 fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::PartialEq + std::str::FromStr>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2, _fake: N) -> StageResult<T> where <N as std::str::FromStr>::Err: std::fmt::Debug {
-  let mut stream = t.into_iter().peekable();
+  let mut stream = t.clone().into_iter().peekable();
   let left: N = match stream.next() {
     None => {
-      todo!();
+      let msg = "No number on the left when trying to compare numbers.";
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
     },
     Some(TokenTree2::Literal(x)) => {
       let lit = x.to_string();
@@ -2027,7 +2029,11 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
       };
       num
     },
-    Some(_) => todo!(),
+    Some(x) => {
+      let msg = format!("No number on the left when trying to compare numbers; got {} instead.", x);
+      let sp = x.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+    },
   };
   let op: NumOp = match stream.next() {
     Some(TokenTree2::Punct(x)) if x.as_char() == '=' => {
@@ -2039,7 +2045,9 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
           stream.next();
           NumOp::Le
         } else {
-          panic!("Blah!")
+          let msg = format!("In logic, comparing two numbers, after '<', got Punct, expecting '=', actual: {}.", eq.clone());
+          let sp = eq.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
         }
       } else {
         NumOp::Lt
@@ -2051,7 +2059,9 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
           stream.next();
           NumOp::Ge
         } else {
-          panic!("Blah!")
+          let msg = format!("In logic, comparing two numbers, after '>', got Punct, expecting '=', actual: {}.", eq.clone());
+          let sp = eq.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
         }
       } else {
         NumOp::Gt
@@ -2063,18 +2073,38 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
           stream.next();
           NumOp::NotEqual
         } else {
-          panic!("Blah!")
+          let msg = format!("In logic, comparing two numbers, after '!', got Punct, expecting '=', actual: {}.", eq.clone());
+          let sp = eq.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
         }
       } else {
-        panic!("Blah!")
+        let msg = format!("In logic, comparing two numbers, after '!', expected '=', but got {:?}.", stream.next());
+        let sp = x.span();
+        return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
       }
     },
-    _ => todo!(),
+    Some(x) => {
+      let msg = format!("No recognised operator found to compare numbers; got {} instead.", x);
+      let sp = x.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+    },
+    None => {
+      let msg = "No operator when trying to compare numbers.";
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+    },
   };
   let result = match stream.next() {
     Some(TokenTree2::Literal(x)) => {
-      let lit = x.to_string();
-      let right: N = N::from_str(&lit).expect("Expected number.");
+      let lit = x.clone().to_string();
+      let right: N = match N::from_str(&lit) {
+        Ok(x)  => x,
+        Err(e) => {
+          let msg = format!("Expected number when doing numeric comparison. Got {} with error {:?}", lit, e);
+          let sp = x.span();
+          return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+        },
+      };
       match op {
         NumOp::Lt       => left <  right,
         NumOp::Le       => left <= right,
@@ -2084,7 +2114,16 @@ fn logicInternalNum<T: StartMarker + Clone, N: std::cmp::PartialOrd + std::cmp::
         NumOp::NotEqual => left != right,
       }
     },
-    _ => todo!(),
+    Some(x) => {
+      let msg = format!("No number found on the right when trying to compare numbers; got {} instead.", x);
+      let sp = x.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+    },
+    None => {
+      let msg = "No number on the right when trying to compare numbers.";
+      let sp = t.span();
+      return Err((v, quote_spanned!{sp=> compile_error!{ #msg } }));
+    },
   };
   Ok((v, quote!{ #result }))
 }
@@ -2555,7 +2594,7 @@ pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
 pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut variables = v.clone();
   let mut stream = t.into_iter();
-  stream.next();
+  let mk_ed_name = stream.next().unwrap(); // FIXME
   let mut var_num = 1;
   let mut restore_args: Vec<(String, (TokenStream2, bool))> = Vec::new();
   for i in stream {
@@ -2583,12 +2622,14 @@ pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<
     }
   } else {
     //error
-    return todo!();
+    let msg = format!("There was no associated code found when trying to run the mk based handler called: {:?}", mk_ed_name);
+    let sp = mk_ed_name.span();
+    return Err((v, quote_spanned!{sp=> #msg }));
   }
 }
 pub fn mkHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut variables = v.clone();
-  let mut it = t.into_iter();
+  let mut it = t.clone().into_iter();
   it.next();
   if let Some(TokenTree2::Ident(name)) = it.next() {
     let mut ts = TokenStream2::new();
@@ -2596,7 +2637,9 @@ pub fn mkHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Varia
     variables.handlers.insert(name.to_string(), (Box::new(&handleMkHandlerRunner), Some(ts)));
     return Ok((variables, quote!{ }));
   } else {
-    todo!();
+    let msg = format!("There was no name found when trying to construct a mk based handler.");
+    let sp = t.span();
+    return Err((v, quote_spanned!{sp=> #msg }));
   }
 }
 
