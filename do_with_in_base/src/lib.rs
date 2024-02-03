@@ -2254,8 +2254,53 @@ fn logicInternal<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, d
   }
 }
 
-// logic x logic: & | ! ~ = != ~=
-// arith x arith: > < = <= >= != ~=
+/// Handle logic expressions with a nestable sublanguage
+/// 
+/// Basic usage: `$(logic <expression>)`.
+/// 
+/// Returns `true` or `false` based on evaluating standard boolean logic expressions.
+/// Subexpressions can be created using parenthesis and nested arbitrarily.
+/// 
+/// | Operator | Logical Operation    |
+/// |--------- | ---------            |
+/// | `A & B`  | AND (conjunction)    |
+/// | `A \| B` | OR (disjunction)     |
+/// | `A ^ B`  | XOR (exclusive OR)   |
+/// | `A = B`  | EQUAL (equivalence)  |
+/// | `! A`    | NOT (negation)       |
+/// | `true`   | TRUE literal         |
+/// | `false`  | FALSE literal        |
+/// 
+/// Numeric comparisons are also supported between numeric values:
+/// 
+/// | Operator | Numeric operation        |
+/// | -------- | -----------------        |
+/// | `X > Y`  | Greater-than             |
+/// | `X >= Y` | Greater-than or equal to |
+/// | `X = Y`  | Equal to                 |
+/// | `X <= Y` | Less-than or equal to    |
+/// | `X < Y`  | Less-than                |
+/// | `X != Y` | Not equal to             |
+/// 
+/// Finally, subexpressions of the form `(eq_str "a" "b")` can be used to do string equality comparisons.
+/// 
+/// ## Examples ##
+/// 
+/// ```ignore
+/// // Logic expression returns true or false
+/// let x1 = $(logic false | true); // x1 = true
+/// 
+/// // Nesting is supported
+/// let xf = $(logic (false | (! false)) | ((true = true) & (! false))); // xf = true
+/// 
+/// // Numeric comparison
+/// $(logic $N < $M)
+/// 
+/// // Use within an $(if) handler and containing a $(arithmetic) expression.
+/// $(if { $(logic $(arithmetic u64u (($N * $WORDSIZE) % ((size_of u8) * 8))) = 0) } { 0 } { 1 })
+/// ```
+/// 
+/// See `do_with_in_test.rs` for more examples.
 pub fn logicHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
