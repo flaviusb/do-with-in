@@ -19,7 +19,7 @@ do_with_in!{
   $(mk foreach
     $(let N = { $1 })
     $(let M = { $2 })
-    $(if { $(logic $N < $M) } { $3 $(var x = { $(arithmetic u64u $1 + 1) $2 $3 }) $(array each foreach [ { $x } ]) } { })
+    $(if { $(logic $N < $M) } { $(array each $3 [{$1 $2}]) $(var x = { $(arithmetic u64u $1 + 1) $2 $3 }) $(array each foreach [ { $x } ]) } { })
   )
   $(mk mkFetch
       $(var N        = { $1 }
@@ -39,7 +39,8 @@ do_with_in!{
           let end_big = ((ip + $N) * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>();
           let end_small = ((ip + $N) * $WORDSIZE) % std::mem::size_of::<Self::MEM_BLOCK>();
           let num_big = ($N * $WORDSIZE) / std::mem::size_of::<Self::MEM_BLOCK>();
-          let out: [u8; $OUT] = [ $(var x = {{0 $OUT (0,)}}) $(array each foreach [ $x ]) ];//*/ [0; $OUT];
+          $(mk bit $1,)
+          let out: [u8; $OUT] = [ $(var x = {{0 $OUT bit}}) $(array each foreach [ $x ]) ];
           //let out: [u8; {(($N * $WORDSIZE) as usize).div_ceil(std::mem::size_of::<Self::MEM_BLOCK>())}] = core::array::from_fn(|i| {
             // There are several possibilities
             // The easy case: MEM_BLOCK = $WORDSIZE = u8
@@ -59,6 +60,8 @@ do_with_in!{
   $(mk mem_1_4 Fetch::<1, 4, 1>::fetch(& $1, $2))
   $(mkFetch 3 4)
   $(mk mem_3_4 Fetch::<3, 4, 2>::fetch(& $1, $2))
+  $(mkFetch 4 12)
+  $(mk mem_4_12 Fetch::<4, 12, 6>::fetch(& $1, $2))
 
   const MEMLEN: usize = 2usize.pow(12);
   fn main() {
@@ -70,10 +73,12 @@ do_with_in!{
     let r = $(mem_2_4 m 1);
     let s = $(mem_1_4 m 1);
     let t = $(mem_3_4 m 1);
+    let u = $(mem_4_12 m 3);
     println!("ip = 0: {:?}", q);
     println!("ip = 1: {:?}", r);
     println!("ip = 1: {:?}", s);
     println!("ip = 1: {:?}", t);
+    println!("ip = 3: {:?}", u);
   }
 
 }
