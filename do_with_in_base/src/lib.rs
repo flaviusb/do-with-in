@@ -2991,6 +2991,13 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// | `set`       | Replace the element at `<position>` with `<newEl>`.           | `$(array ith set <position> <newEl> $array);` |
 /// | `insert`    | Insert element `<newEl>` before the element at `<position>`.  | `$(array ith insert <position> <newEl> $array)` |
 /// | `remove`    | Remove the element at `<position>`.                           | `$(array ith remove <position> $array)` |
+/// 
+/// ## `map` ##
+/// 
+/// If `should_isolate` is set to `true`, the code block is kept isolated from the running environment, if `false`, variables and
+/// handlers defined within the block will persist in the environment, allowing patterns like currying.
+/// 
+/// The `<name>` argument is used to set a variable representing the current element available for use within the code block `<block>`.
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
