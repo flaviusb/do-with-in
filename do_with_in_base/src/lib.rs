@@ -2996,7 +2996,7 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// 
 /// Iterates through each item in <array> and runs the handler identified by <handlerName>, passing the item's sub-elements as arguments.
 /// For example,
-///  `$(array each run [ {{let f = 3;}} {{let g = 4;}} ] )` will set `$f` to 3 and `$g` to 4.
+///  `$(array each run [ {$(let f = {3})} {$(let g = {4})} ] )` will set `$f` to 3 and `$g` to 4.
 /// 
 /// ## `map` ##
 /// 
