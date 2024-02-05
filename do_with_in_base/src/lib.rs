@@ -2992,6 +2992,12 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// | `insert`    | Insert element `<newEl>` before the element at `<position>`.  | `$(array ith insert <position> <newEl> $array)` |
 /// | `remove`    | Remove the element at `<position>`.                           | `$(array ith remove <position> $array)` |
 /// 
+/// ## `each` ##
+/// 
+/// Iterates through each item in <array> and runs the handler identified by <handlerName>, passing the item's sub-elements as arguments.
+/// For example,
+///  `$(array each run [ {{let f = 3;}} {{let g = 4;}} ] )` will set `$f` to 3 and `$g` to 4.
+/// 
 /// ## `map` ##
 /// 
 /// If `should_isolate` is set to `true`, the code block is kept isolated from the running environment, if `false`, variables and
