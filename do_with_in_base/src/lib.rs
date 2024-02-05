@@ -2964,6 +2964,21 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// | `each`      | Passes array of argument tuples to a handler.                                             | `$(array each <handlerName> <array>)`                 |
 /// | `map`       | Returns a new array based on applying <block> to <srcArray>                               | `$(array map <isIsolated> <name> <block> <srcArray>)` |
 /// | `mk`        | Iterates through arguments, checks if they are valid array elements, and groups them      | `$(array mk <block1> <block2> ... )`                  |
+/// 
+/// Some of these subcommands do a lot:
+/// 
+/// ## `ith` ##
+/// 
+/// All `ith` subcommands take a zero-indexed position argument to indicate where in the array the subcommand applies.
+/// Negative integers may be used to index from the tail of the array e.g. `-1` represents the final element, `-2` the penultimate element, and so on.
+/// The special tokens `head` and `tail` can be used instead of integer positions 0 and -1 respectively.
+/// 
+/// | Subcommand | Summary | Syntax |
+/// | ---------- | ------- | ------ |
+/// | `get`     | Returns the element at `<position>`.                          | `$(array ith get <position> $array);` |
+/// | `set`     | Replace the element at `<position>` with `<newEl>`.           | `$(array ith set <position> <newEl> $array);` |
+/// | `insert`  | Insert element `<newEl>` before the element at `<position>`.  | `$(array ith insert <position> <newEl> $array)` |
+/// | `remove`  | Remove the element at `<position>`.                           | `$(array ith remove <position> $array)` |
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
