@@ -2950,6 +2950,20 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   }
   Ok((v_out, quote!{}))
 }
+
+/// Provides tools for working with arrays.
+/// 
+/// Arrays are represented by square brackets wrapping a block of one or more elements: `[{e1} {e2 e3}]`.
+/// 
+/// | Subcommand  | Summary                                                                                   | Syntax |
+/// | ----------  | -------                                                                                   | ------ |
+/// | `length`    | Return the length of the array.                                                           | `$(array length <array>)`                             |
+/// | `ith`       | Work with array using positional arguments. Operations: `get`, `set`, `remove`, `insert`. | `$(array ith <operation> <arguments>`                 |
+/// | `slice`     | TODO                                                                                      |         |
+/// | `concat`    | Concatenate the elements of two arrays together.                                          | `$(array concat <array1> <array2>)`                   |
+/// | `each`      | Passes array of argument tuples to a handler.                                             | `$(array each <handlerName> <array>)`                 |
+/// | `map`       | Returns a new array based on applying <block> to <srcArray>                               | `$(array map <isIsolated> <name> <block> <srcArray>)` |
+/// | `mk`        | Iterates through arguments, checks if they are valid array elements, and groups them      | `$(array mk <block1> <block2> ... )`                  |
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
