@@ -2953,19 +2953,31 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 
 /// Provides tools for working with arrays.
 /// 
-/// Arrays are represented by square brackets wrapping a block of one or more elements: `[{e1} {e2 e3}]`.
+/// *Syntax*: `$(array <q>? <command> <arguments>)`
 /// 
-/// | Subcommand  | Summary                                                                                   | Syntax |
-/// | ----------  | -------                                                                                   | ------ |
+/// An array in `do_with_in!` is a Group (delimited token stream) containing zero or more Groups, and nothing else.
+/// The array commands simply manipulate these sequences of tokens to produce an evaluated result.
+/// All commands that "modify" an array in fact produce a new evaluated result.
+/// By convention, arrays are delimited by square brackets e.g. `[{100} {a b}]`.
+/// 
+/// ## q mode ##
+/// 
+/// If the `array` token is followed immediately by a `q`, the command will treat its arguments as quoted and handle them as such.
+/// For example, `%(array q length %(quote {{1}}))` returns 1.
+/// 
+/// ## Commands ##
+/// 
+/// | Command     | Summary                                                                                   | Syntax |
+/// | -------     | -------                                                                                   | ------ |
 /// | `length`    | Return the length of the array.                                                           | `$(array length <array>)`                             |
-/// | `ith`       | Work with array using positional arguments. Operations: `get`, `set`, `remove`, `insert`. | `$(array ith <operation> <arguments>`                 |
+/// | `ith`       | Work with array using positional arguments.                                               | `$(array ith <operation> <arguments>`                 |
 /// | `slice`     | TODO                                                                                      |         |
-/// | `concat`    | Concatenate the elements of two arrays together.                                          | `$(array concat <array1> <array2>)`                   |
+/// | `concat`    | Concatenate the elements of two or more arrays together.                                  | `$(array concat <array1> <array2> ...)`               |
 /// | `each`      | Passes array of argument tuples to a handler.                                             | `$(array each <handlerName> <array>)`                 |
-/// | `map`       | Returns a new array based on applying <block> to <srcArray>                               | `$(array map <isIsolated> <name> <block> <srcArray>)` |
+/// | `map`       | Returns a new array based on applying <block> to <srcArray>                               | `$(array map <should_isolate> <name> <block> <srcArray>)` |
 /// | `mk`        | Iterates through arguments, checks if they are valid array elements, and groups them      | `$(array mk <block1> <block2> ... )`                  |
 /// 
-/// Some of these subcommands do a lot:
+/// Some of these commands do a lot:
 /// 
 /// ## `ith` ##
 /// 
@@ -2973,12 +2985,12 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// Negative integers may be used to index from the tail of the array e.g. `-1` represents the final element, `-2` the penultimate element, and so on.
 /// The special tokens `head` and `tail` can be used instead of integer positions 0 and -1 respectively.
 /// 
-/// | Subcommand | Summary | Syntax |
-/// | ---------- | ------- | ------ |
-/// | `get`     | Returns the element at `<position>`.                          | `$(array ith get <position> $array);` |
-/// | `set`     | Replace the element at `<position>` with `<newEl>`.           | `$(array ith set <position> <newEl> $array);` |
-/// | `insert`  | Insert element `<newEl>` before the element at `<position>`.  | `$(array ith insert <position> <newEl> $array)` |
-/// | `remove`  | Remove the element at `<position>`.                           | `$(array ith remove <position> $array)` |
+/// | Subcommand  | Summary | Syntax |
+/// | ---------   | ------- | ------ |
+/// | `get`       | Returns the element at `<position>`.                          | `$(array ith get <position> $array);` |
+/// | `set`       | Replace the element at `<position>` with `<newEl>`.           | `$(array ith set <position> <newEl> $array);` |
+/// | `insert`    | Insert element `<newEl>` before the element at `<position>`.  | `$(array ith insert <position> <newEl> $array)` |
+/// | `remove`    | Remove the element at `<position>`.                           | `$(array ith remove <position> $array)` |
 pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let root_anchor_span = t.clone().span();
   let mut stream = t.into_iter().peekable();
