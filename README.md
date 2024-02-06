@@ -125,6 +125,28 @@ Redefine which sigil to use for the scope of the handler.
     $(let a = {"foo"})
     let a = $(withSigil # #(concat #a "bar"));
 
+### `marker` & `runMarkers`
+
+Markers are a way to "pass" data from one invocation of `do_with_in!` to another, allowing patterns such as sharing common
+handler definitions and variables between `do_with_in!` blocks.
+The `marker` handler embeds data in one invocation of `do_with_in!` in a way that can be loaded by later invocations using `runMarkers`.
+
+    
+    $(marker "optional_name" =>
+      $(let x = { 3 })
+      $(mk foo
+        let $1 = $x * $2;))
+
+This can then be invoked in another `do_with_in!` block (potentially in the same file) like so:
+
+    $(runMarkers Base "path" "to" "file.rs" => "optional_name")
+    $(foo g 2) // $g == 12
+
+Further documentation can be found on [`fn.markerHandler`][] and [`fn.runMarkersHandler`][].
+
+[`fn.markerHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.markerHandler.html
+[`fn.runMarkersHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.runMarkersHandler.html
+
 ### `import`
 
 Basic file inclusion. Path is specified by quoted segments; special unquoted identier Base is used for the crate root.
