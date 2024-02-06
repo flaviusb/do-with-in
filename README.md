@@ -118,6 +118,19 @@ Concatenates its arguments into a string.
     let x = $(concat 1 "abc" 2);
     // x == "1abc2"
 
+### `arithmetic` & `logic`
+
+Provides basic numeric arithmetic operations and logic comparisons respectively.
+
+    // Return type must be specified for arithmetic:
+    let x = $(arithmetic u64 1 + 1 + 1); // x == 3
+    let y = $(logic false | ($N < $M))
+
+Full documentation can be found on [`fn.arithmeticHandler`][] and [`fn.logicHandler`][].
+
+[`fn.arithmeticHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.arithmeticHandler.html
+[`fn.logicHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.logicHandler.html
+
 ### `withSigil` *newSigil* *params*
 
 Redefine which sigil to use for the scope of the handler.
