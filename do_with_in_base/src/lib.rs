@@ -2963,7 +2963,12 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// ## q mode ##
 /// 
 /// If the `array` token is followed immediately by a `q`, the command will treat its arguments as quoted and handle them as such.
-/// For example, `%(array q length %(quote {{1}}))` returns 1.
+/// For example:
+/// 
+///     %(array q length %(quote [ {foo} ])); // evaluates to 1;
+///     %(let x = { quux });
+///     %(array ith 2 [ {1} {foo bar baz} { $x } ]); // evaluates to { quux }
+///     %(array q ith 2 %(quote [ {1} {foo bar baz} { $x } ])); // evaluates to %(quote { $x }).
 /// 
 /// ## Commands ##
 /// 
@@ -2995,7 +3000,11 @@ pub fn runMarkersHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
 /// ## `each` ##
 /// 
 /// Iterates through each item in <array> and runs the handler identified by <handlerName>, passing the item's sub-elements as arguments.
-/// For example,
+/// Useful for cases where `map` would be overkill, or for adding flexibility to `mk`-generated handlers' simple argument passing.
+/// See `examples/mem.rs` for a demonstration of the latter pattern.
+/// 
+/// Example:
+/// 
 ///  `$(array each run [ {$(let f = {3})} {$(let g = {4})} ] )` will set `$f` to 3 and `$g` to 4.
 /// 
 /// ## `map` ##
