@@ -126,6 +126,12 @@ A simple way to define new handlers at the use site. Allows the use of positiona
     // .. which can then be called with arguments
     ~(embolden {"World"})
 
+### `if` *test* *trueBlock* *falseBlock*
+
+Conditional control flow.
+
+    let x = $(if true {4} {5}); // x == 4
+
 ### `concat` *params*
 
 Concatenates its arguments into a string.
