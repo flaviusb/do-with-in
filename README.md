@@ -2,6 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/do-with-in.svg)](https://crates.io/crates/do-with-in)
 [![License: GPL-3.0-only](https://img.shields.io/crates/l/do-with-in)](https://spdx.org/licenses/GPL-3.0-only.html)
+[![docs.rs](https://img.shields.io/docsrs/do-with-in)](https://docs.rs/do-with-in/latest/do_with_in/)
 
 A template language for Rust metaprogramming using partial staging.
 
