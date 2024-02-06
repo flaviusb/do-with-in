@@ -105,6 +105,17 @@ Evaluate block of code in place. Useful for pass-through arguments when building
     ~(let thing = {~(quote ~x + ~y)})
     let z = ~(run ~(unquote ~thing));
 
+### `quote`& `unquote`
+
+Similar to the LISP concept, `quote` renders its arguments inert, and `unquote` makes active a quoted argument.
+This allows constructing and passing arround of an expression without premature evaluation.
+
+    ~(let thing = {~(quote ~x + ~y)})
+    ~(let
+        x = {3}
+        y = {4}
+    )
+    let z = ~(run ~(unquote ~thing)); // z == 7
 
 ### `mk` *identifier* *block*
 
