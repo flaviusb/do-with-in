@@ -98,9 +98,13 @@ Whereas a variable set with `var` can make reference to other metaprogramming va
     x = %bar
     // x == 5
 
-### `run`
+### `run` *block*
 
-Evaluate block of code
+Evaluate block of code in place. Useful for pass-through arguments when building handlers, or to evaluate an unquoted array:
+
+    ~(let thing = {~(quote ~x + ~y)})
+    let z = ~(run ~(unquote ~thing));
+
 
 ### `mk` *identifier* *block*
 
