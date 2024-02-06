@@ -175,9 +175,9 @@ Further documentation can be found on [`fn.markerHandler`][] and [`fn.runMarkers
 [`fn.markerHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.markerHandler.html
 [`fn.runMarkersHandler`]: https://docs.rs/do-with-in/latest/do_with_in/fn.runMarkersHandler.html
 
-### `import`
+### `import` *pathSegment*\*
 
-Basic file inclusion. Path is specified by quoted segments; special unquoted identier Base is used for the crate root.
+Basic file inclusion. Path is specified by quoted segments; special unquoted identier `Base` is used for the crate root.
 
     $(import Base "src" "import.$")
 
