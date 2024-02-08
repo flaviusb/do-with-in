@@ -1847,6 +1847,11 @@ pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Op
   do_with_in_explicit2(in_it, c.clone(), v2)
 }
 // TODO: Remeber to check for whether 'quote' ends up stacking up due to everything inside the $(...) being passed through the t
+/// In the lisp sense; renders its argument inert.
+/// 
+/// *Syntax*: `$(quote <arg>)`
+/// 
+/// Allows an expression to be created in one place, passed around as-is, and eventually unwrapped with [unquote] for expansion and evaluation.
 pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   // Remember that the first token of t should already be 'quote'
   let out = match c.sigil {
@@ -1858,6 +1863,11 @@ pub fn quote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:
   Ok((v, out))
 }
 
+/// In the lisp sense; renders its argument ert.
+/// 
+/// *Syntax*: `$(unquote <quotedArg>)`
+/// 
+/// Unwraps an expression created with [quote], allowing it to be expanded and run in a different context from its definition.
 pub fn unquote<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut out: TokenStream2 = quote!{compile_error!{"Nothing here."}};
   let sig_char = match format!("{}", c.sigil).pop() {
