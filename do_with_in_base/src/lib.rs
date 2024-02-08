@@ -1168,6 +1168,11 @@ pub fn naiveStringifierHandler<T: StartMarker + Clone>(c: Configuration<T>, v: V
   Ok((v, quote!{ #output }))
 }
 
+/// Turn a string into a named identifier.
+/// 
+/// *Syntax*: `$(string_to_ident <stringValue>)`
+/// 
+/// This allows the creation and reference of dynamic identifier names. Argument must be a string or an object with the `to_string` method.
 pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
@@ -3421,8 +3426,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | var              | [varHandler]              | Create and assign a variable. DOES interpolate during both definition and use.                                                                                     |
 /// | concat           | [concatHandler]           | Concatenate two or more values together into a string. Calls `to_string` method on values that are not string literals.                                                            |
 /// | naiveStringifier | [naiveStringifierHandler] |                                                                                                                                                                                    |
-/// | string_to_ident  | [string_to_identHandler]  |                                                                                                                                                                                    |
 /// | arithmetic       | [arithmeticHandler]       | You have to specify the type of the number eg i8, usize, f64                                                                                                                       |
+/// | string_to_ident  | [string_to_identHandler]  | Turn a string into a named identifier, allowing dynamic identifier names.                                                                                                          |
 /// | logic            | [logicHandler]            | Sublanguage: nesting with parenthesis; logic ops ⌜&⌝, ⌜\|⌝, ⌜^⌝, ⌜=⌝, unary ⌜!⌝, ⌜true⌝, ⌜false⌝; numeric comparisons with numbers ⌜>⌝, ⌜>=⌝, ⌜=⌝, ⌜<=⌝, ⌜<⌝, ⌜!=⌝                 |
 /// | mk               | [mkHandler]               | A simple way to define new handlers at the use site                                                                                                                                |
 /// | quote            | [quote][quote()]          | In the lisp sense; renders the argument inert                                                                                                                                      |
