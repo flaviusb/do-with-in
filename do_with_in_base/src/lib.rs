@@ -1752,9 +1752,12 @@ pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variabl
   Ok((v, output))
 }
 
-/// A handler that lets the end user change which sigil the code inside it uses.
+/// Redefine which sigil to use within the scope of the handler.
+/// 
+/// *Syntax*: `$(withSigil <newSigil> <codeUsingNewSigil>)`
 ///
 /// In a context where the sigil was `$` and you want to complicatedly generate a lot of macro_rules! code based on some table, you might use it like so
+/// 
 /// ```rust,ignore
 /// // various other code
 /// $(withSigil %
@@ -3466,8 +3469,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | unquote          | [unquote]                 | In the lisp sense; renders the argument ert                                                                                                                                        |
 /// | run              | [run]                     | Evaluate block of code in place. Useful for pass-through arguments when building handlers, or to evaluate an unquoted array.                                                       |
 /// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
-/// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
 /// | import           | [importHandler]           | Basic file inclusion. Path to file is defined by a series of quoted segments, relative path can be used if `file:` hint is set in front matter.                                    |
+/// | withSigil        | [withSigilHandler]        | Redefine which sigil to use within the scope of the handler. Sigil can be one of `$`, `%`, `#`, or `~`.                                                                            |
 /// | marker           | [markerHandler]           | Embed data in one invocation of `do_with_in!` in a way that can be used in other invocations.                                                                                      |
 /// | runMarkers       | [runMarkersHandler]       | Load data into the environment from other invocations of `do_with_in!`.                                                                                                            |
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
