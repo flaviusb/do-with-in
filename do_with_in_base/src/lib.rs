@@ -3436,8 +3436,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
 /// | import           | [importHandler]           | Basic file inclusion; path must be specified by quoted segments; special unquoted identier Base is used for the crate root; errors in included file will point at import statement |
 /// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
-/// | marker           | [markerHandler]           | This handler is for embedding data in one invocation of do_with_in! in a way that can be used in other invocations.                                                                |
-/// | runMarkers       | [runMarkersHandler]       | This handler loads data into the environment from other invocations of do_with_in!.                                                                                                |
+/// | marker           | [markerHandler]           | Embed data in one invocation of `do_with_in!` in a way that can be used in other invocations.                                                                                      |
+/// | runMarkers       | [runMarkersHandler]       | Load data into the environment from other invocations of `do_with_in!`.                                                                                                            |
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
   let mut m: HashMap<String, (Box<&Handler<T>>, Option<TokenStream2>)> = HashMap::new();
   m.insert(String::from("if"), ((Box::new(&ifHandler), None)));
