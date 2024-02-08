@@ -2444,6 +2444,16 @@ macro_rules! getCode {
     };
   };
 }
+/// Import the contents of a file.
+/// 
+/// *Syntax*: `$(import <pathSegment>...)`
+/// 
+/// Path is specified by quoted segments; special unquoted identier `Base` is used for the crate root.
+/// Takes into account the `file:` hint in `do-with-in!` front matter to allow relative path addressing.
+///
+/// Errors in the imported file will point at the import statement, rather than within the file itself.
+/// 
+/// See tests for more examples of file importing.
 pub fn importHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   getCode!(stream, tokens, anchor_span, cnew, c, path, v, t);
   let mut thing = TokenStream2::new();
@@ -3456,8 +3466,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | unquote          | [unquote]                 | In the lisp sense; renders the argument ert                                                                                                                                        |
 /// | run              | [run]                     | Evaluate block of code in place. Useful for pass-through arguments when building handlers, or to evaluate an unquoted array.                                                       |
 /// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
-/// | import           | [importHandler]           | Basic file inclusion; path must be specified by quoted segments; special unquoted identier Base is used for the crate root; errors in included file will point at import statement |
 /// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
+/// | import           | [importHandler]           | Basic file inclusion. Path to file is defined by a series of quoted segments, relative path can be used if `file:` hint is set in front matter.                                    |
 /// | marker           | [markerHandler]           | Embed data in one invocation of `do_with_in!` in a way that can be used in other invocations.                                                                                      |
 /// | runMarkers       | [runMarkersHandler]       | Load data into the environment from other invocations of `do_with_in!`.                                                                                                            |
 pub fn genericDefaultHandlers<'a, T: 'static + StartMarker + Clone>() -> Handlers<'a, T> {
