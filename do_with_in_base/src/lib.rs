@@ -1816,7 +1816,12 @@ pub fn unescape<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, da
     Escaping::Backslash => actually_unescape(c, v, data, quote!{ Backslash #t }),
   }
 }
- 
+
+/// Evaluate block of code in place.
+/// 
+/// *Syntax*: $(run {<code>})
+/// 
+/// Useful for pass-through arguments when building handlers, or to evaluate an unquoted array.
 pub fn run<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut temp = t.into_iter();
   temp.next();
@@ -3417,7 +3422,7 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | mk               | [mkHandler]               | A simple way to define new handlers at the use site                                                                                                                                |
 /// | quote            | [quote][quote()]          | In the lisp sense; renders the argument inert                                                                                                                                      |
 /// | unquote          | [unquote]                 | In the lisp sense; renders the argument ert                                                                                                                                        |
-/// | run              | [run]                     |                                                                                                                                                                                    |
+/// | run              | [run]                     | Evaluate block of code in place. Useful for pass-through arguments when building handlers, or to evaluate an unquoted array.                                                       |
 /// | array            | [arrayHandler]            | This handler has a bunch of subcommands and options; it is where most of the functionality for dealing with the representation we use of arrays is.                                |
 /// | import           | [importHandler]           | Basic file inclusion; path must be specified by quoted segments; special unquoted identier Base is used for the crate root; errors in included file will point at import statement |
 /// | withSigil        | [withSigilHandler]        |                                                                                                                                                                                    |
