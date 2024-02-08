@@ -126,13 +126,15 @@ A simple way to define new handlers at the use site. Allows the use of positiona
     // .. which can then be called with arguments
     ~(embolden {"World"})
 
-### `if` *test* *trueBlock* *falseBlock*
+### `if` *testBlock* *trueBlock* *falseBlock*
 
-Conditional control flow.
+Conditional control flow. Test must return either `true` or `false`. Only one branch is expanded and executed.
 
-    let x = $(if true {4} {5}); // x == 4
+    let x = $(if {true} {4} {5}); // x == 4
+    // Test could be a $logic handler or set variable
+    let y = $(if {$(logic true & false)} {1} {2}); // y = 2
 
-### `concat` *params*
+### `concat` *params*\*
 
 Concatenates its arguments into a string.
 
