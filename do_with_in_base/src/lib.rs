@@ -1007,7 +1007,13 @@ impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
 pub type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, Option<TokenStream2>, TokenStream2) -> StageResult<T>;
 pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler<T>>, Option<TokenStream2>)>;
 
-
+/// Conditionally execute one of two branches, depending on the result of a test expression.
+/// 
+/// *Syntax*: `$(if {<testBlock>} {<trueBlock>} {<falseBlock})`
+/// 
+/// The test will often be either a variable that has been set elsewhere or a `$(logic ...)` block.
+/// It *must* evaluate to either `true` or `false`.
+/// Only one of the branches is expanded and executed, so this can be used to protect the other branch from blowing up.
 pub fn ifHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.into_iter();
   let if_anchor = stream.next().span();
@@ -3437,7 +3443,7 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 ///
 /// | Invoke as        | Defined by                | Note                                                                                                                                                                               |
 /// |------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-/// | if               | [ifHandler]               | Use as `$(if test { true branch } { false branch })`. The test will often be either a variable that has been set elsewhere or a `$(logic ...)` block.                              |
+/// | if               | [ifHandler]               | Conditionally execute one of two branches, depending on the result of a test expression. Use as `$(if {test} { true branch } { false branch })`.                                   |
 /// | let              | [letHandler]              | Create and assign a variable. Does NOT interpolate during either definition or use.                                                                                  |
 /// | var              | [varHandler]              | Create and assign a variable. DOES interpolate during both definition and use.                                                                                     |
 /// | concat           | [concatHandler]           | Concatenate two or more values together into a string. Calls `to_string` method on values that are not string literals.                                                            |
