@@ -1156,6 +1156,12 @@ pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T
   return Ok((v, output));
 }
 
+/// Return a string representation of a `do-with-in!` value.
+/// 
+/// *Syntax*: `$(naiveStringifier <value>)`
+/// 
+/// As the name implies, not all cases may be elegantly handled, and the output from this handler may change without warning.
+/// Potentially useful nonetheless for print debugging of complex structures and the like.
 pub fn naiveStringifierHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = match do_with_in_explicit2(t, c.clone(), v.clone()) {
     Ok((_, x)) => x,
@@ -3425,8 +3431,8 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | let              | [letHandler]              | Create and assign a variable. Does NOT interpolate during either definition or use.                                                                                  |
 /// | var              | [varHandler]              | Create and assign a variable. DOES interpolate during both definition and use.                                                                                     |
 /// | concat           | [concatHandler]           | Concatenate two or more values together into a string. Calls `to_string` method on values that are not string literals.                                                            |
-/// | naiveStringifier | [naiveStringifierHandler] |                                                                                                                                                                                    |
 /// | arithmetic       | [arithmeticHandler]       | You have to specify the type of the number eg i8, usize, f64                                                                                                                       |
+/// | naiveStringifier | [naiveStringifierHandler] | Return a string representation of a `do-with-in!` value. Per the name: may not cover all cases.                                                                                    |
 /// | string_to_ident  | [string_to_identHandler]  | Turn a string into a named identifier, allowing dynamic identifier names.                                                                                                          |
 /// | logic            | [logicHandler]            | Sublanguage: nesting with parenthesis; logic ops ⌜&⌝, ⌜\|⌝, ⌜^⌝, ⌜=⌝, unary ⌜!⌝, ⌜true⌝, ⌜false⌝; numeric comparisons with numbers ⌜>⌝, ⌜>=⌝, ⌜=⌝, ⌜<=⌝, ⌜<⌝, ⌜!=⌝                 |
 /// | mk               | [mkHandler]               | A simple way to define new handlers at the use site                                                                                                                                |
