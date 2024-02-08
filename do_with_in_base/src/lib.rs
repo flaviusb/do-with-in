@@ -1130,6 +1130,11 @@ pub fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variab
   return Ok(out_str);
 }
 
+/// Concatenate two or more values together into a string.
+/// 
+/// *Syntax*: `%(concat <v1> <v2>...)`
+/// 
+/// Calls `to_string` method on values that are not string literals.
 pub fn concatHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
@@ -3412,9 +3417,9 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | Invoke as        | Defined by                | Note                                                                                                                                                                               |
 /// |------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 /// | if               | [ifHandler]               | Use as `$(if test { true branch } { false branch })`. The test will often be either a variable that has been set elsewhere or a `$(logic ...)` block.                              |
-/// | concat           | [concatHandler]           |                                                                                                                                                                                    |
 /// | let              | [letHandler]              | Create and assign a variable. Does NOT interpolate during either definition or use.                                                                                  |
 /// | var              | [varHandler]              | Create and assign a variable. DOES interpolate during both definition and use.                                                                                     |
+/// | concat           | [concatHandler]           | Concatenate two or more values together into a string. Calls `to_string` method on values that are not string literals.                                                            |
 /// | naiveStringifier | [naiveStringifierHandler] |                                                                                                                                                                                    |
 /// | string_to_ident  | [string_to_identHandler]  |                                                                                                                                                                                    |
 /// | arithmetic       | [arithmeticHandler]       | You have to specify the type of the number eg i8, usize, f64                                                                                                                       |
