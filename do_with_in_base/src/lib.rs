@@ -2739,6 +2739,13 @@ pub fn assignmentInternalHandler<T: StartMarker + Clone>(c: Configuration<T>, v:
   }
   Ok((variables, quote!{}))
 }
+/// Create and assign variables. Does NOT interpolate during either definition or use.
+/// 
+/// *Syntax*: `%(let <ident> = <value>)`
+/// 
+/// A variable in `do-with-in!` is an identifier with a prepended sigil.
+/// The value assigned to a variable defined with `let` will remain unchanged before it is used.
+/// Internally, `let` is a wrapper around [assignmentInternalHandler];
 pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.into_iter();
   check_token_ret!(v, Some(TokenTree2::Ident(it)), stream.next(), "Expecting 'let'.", it.to_string() == "let", "Expecting 'let'.");
@@ -2747,6 +2754,13 @@ pub fn letHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, 
   assignmentInternalHandler(c, v, temp, false, false)
 }
 
+/// Create and assign variables. DOES interpolate during both definition and use.
+/// 
+/// *Syntax*: `$(var <ident> = <value>)`
+/// 
+/// A variable in `do-with-in!` is an identifier with a prepended sigil.
+/// Variables set with `var` can make reference to other metaprogramming variables.
+/// Internally, `var` is a wrapper around [assignmentInternalHandler];
 pub fn varHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut stream = t.into_iter();
   check_token_ret!(v, Some(TokenTree2::Ident(it)), stream.next(), "Expecting 'var'.", it.to_string() == "var", "Expecting 'var'.");
@@ -3393,9 +3407,9 @@ fn uq(s: Sigil, t: TokenStream2) -> std::result::Result<TokenStream2, &'static s
 /// | Invoke as        | Defined by                | Note                                                                                                                                                                               |
 /// |------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 /// | if               | [ifHandler]               | Use as `$(if test { true branch } { false branch })`. The test will often be either a variable that has been set elsewhere or a `$(logic ...)` block.                              |
-/// | let              | [letHandler]              | Internally, a wrapper around [assignmentInternalHandler]; do not interpolate on definition or use                                                                                  |
-/// | var              | [varHandler]              | Internally, a wrapper around [assignmentInternalHandler]; interpolate on definition and on use                                                                                     |
 /// | concat           | [concatHandler]           |                                                                                                                                                                                    |
+/// | let              | [letHandler]              | Create and assign a variable. Does NOT interpolate during either definition or use.                                                                                  |
+/// | var              | [varHandler]              | Create and assign a variable. DOES interpolate during both definition and use.                                                                                     |
 /// | naiveStringifier | [naiveStringifierHandler] |                                                                                                                                                                                    |
 /// | string_to_ident  | [string_to_identHandler]  |                                                                                                                                                                                    |
 /// | arithmetic       | [arithmeticHandler]       | You have to specify the type of the number eg i8, usize, f64                                                                                                                       |
