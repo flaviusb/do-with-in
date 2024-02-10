@@ -322,8 +322,9 @@ macro_rules! pull_array_to_vec {
           $out.push(it);
         },
         x => {
+          let sp = x.span();
           let msg = format!("Expected an array element (ie a {{...}}), got {:?}", x);
-          return Err(($v, quote!{ compile_error!{ #msg }}));
+          return Err(($v, quote_spanned!{sp=> compile_error!{ #msg }}));
         },
       }
     }
@@ -3105,7 +3106,13 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       let mut arr_base = if q {
         let mut to_run_quoted_array = TokenStream2::new();
         to_run_quoted_array.extend(stream);
-        let quoted_array = do_with_in_explicit(to_run_quoted_array, c.clone(), v.clone());
+        let quoted_array = match do_with_in_explicit2(to_run_quoted_array, c.clone(), v.clone()) {
+          Ok((_, x)) => x,
+          Err((_, x)) => {
+            let msg = "Problem with parsing array length arguments.";
+            return Err((v, quote_spanned!{op_anchor=> compile_error!{ #msg } #x })); 
+          },
+        };
         match uq(c.clone().sigil, quoted_array) {
           Ok(x)  => {
             match x.into_iter().next() {
@@ -3128,11 +3135,12 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
       };
       if let TokenTree2::Group(arr) = arr_base {
         let mut arr_stuff = arr.stream().into_iter();
-        let mut len = 0;
+        let mut len: u64 = 0;
         for _ in arr_stuff {
           len += 1;
         }
-        return Ok((v, quote!{ #len }));
+        let len_2 = proc_macro2::Literal::u64_unsuffixed(len);
+        return Ok((v, quote!{ #len_2 }));
       } else {
         let msg = format!("Expected an array to get the length of; ... got {:?}", arr_base);
         let sp = arr_base.span();
@@ -3163,8 +3171,12 @@ pub fn arrayHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>
           let mut array: Vec<TokenStream2> = vec!();
           pull_array_to_vec!(stream.next(), array, v, q, c.sigil);
           let idx = convert_offset_to_usize(offset, array.len());
+          if idx >= array.len() {
+            let msg = format!("Attempt to access out of bounds; idx: {} for array: {:?}.", idx, array);
+            return Err((v, quote_spanned!{op_anchor=> compile_error! { #msg }}));
+          }
           let out = array[idx].clone();
-          return Ok((v, quote!{ #out }));
+          return Ok((v, out));
         },
         "set" => {
           // Next arg is an array element
