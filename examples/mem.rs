@@ -94,6 +94,7 @@ do_with_in!{
   const MEMLEN: usize = 2usize.pow(12);
   fn main() {
     println!("bitmasks: {} {:#b}, {} {:#b}, {} {:#b}, {} {:#b}.", 1, $(ok_mask u8 1), 3, $(ok_mask u8 3), 14, $(ok_mask u16 14), 7, $(ok_mask u8 7));
+    println!("bitmasks and shifts: {} {} {:#b}, {} {} {:#b}, {} {} {:#b}, {} {} {:#b}.", 1, 1, $(arithmetic u8 $(ok_mask u8 1) > 1), 3, 3, $(arithmetic u8 $(ok_mask u8 3) > 3), 14, 1, $(arithmetic u16 $(ok_mask u16 14) > 1), 7, 17, $(arithmetic u64 $(ok_mask u64 7) > 17));
     let fff = $(case "u8" [ { [{"u8"} {255}] } { [{"u16"} {65535}] } { [{"u32"} {4294967295}] } { [{"u64"} {18446744073709551615}] } ] 3);
     println!("wafawef: {}", fff);
     let mut m: Mem<MEMLEN> = Mem { mem: [0usize; MEMLEN], };
