@@ -38,7 +38,7 @@ do_with_in!{
     )
   $(mk ok_mask
     $(var n = { $(naiveStringifier $1) })
-    $(var x = { $(case $n [{[{"u8"} {255}]} {[{"u16"} {65535}]} {[{"u32"} {4294967295}]} {[{"u64"} {18446744073709551615}]} ]) })
+    $(var x = { $(array each case [{$n [{[{"u8"} {255}]} {[{"u16"} {65535}]} {[{"u32"} {4294967295}]} {[{"u64"} {18446744073709551615}]} ] }]) })
     $(var y = {$(arithmetic usizeu ((size_of $1) * 8))})
     $(array each arithmetic [{$1 $x < ($y - $2)}]))
   $(mk mkFetch
@@ -93,8 +93,7 @@ do_with_in!{
 
   const MEMLEN: usize = 2usize.pow(12);
   fn main() {
-    //let foo = $(ok_mask u8 1);
-    //println!("bitmasks: {} {:#b}, {} {:#b}, {} {:#b}, {} {:#b}.", 1, $(ok_mask u8 1), 3, $(ok_mask u8 3), 14, $(ok_mask u16 14), 7, $(ok_mask u8 7));
+    println!("bitmasks: {} {:#b}, {} {:#b}, {} {:#b}, {} {:#b}.", 1, $(ok_mask u8 1), 3, $(ok_mask u8 3), 14, $(ok_mask u16 14), 7, $(ok_mask u8 7));
     let fff = $(case "u8" [ { [{"u8"} {255}] } { [{"u16"} {65535}] } { [{"u32"} {4294967295}] } { [{"u64"} {18446744073709551615}] } ] 3);
     println!("wafawef: {}", fff);
     let mut m: Mem<MEMLEN> = Mem { mem: [0usize; MEMLEN], };
