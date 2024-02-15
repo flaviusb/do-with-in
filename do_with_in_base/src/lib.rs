@@ -1715,40 +1715,58 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
   };
 }
 
-/// A handler for basic arithmetic.
+/// Perform basic arithmetic calculations.
 /// 
 /// Because of a lack of type inference, you have to specify your desired return type at the start of any use of this handler.
+/// By default this will be a suffix-annotated literal (e.g. `5i8`, `1_i32`); append a `u` to the type name to return an unsuffixed literal.
+/// See [Rust by Example](https://doc.rust-lang.org/rust-by-example/primitives.html) for further reference.
+///
+/// ## Supported Operators
 /// 
-/// Syntax is: `$output_specifier $command`
-///
-/// where `$output_specifier` is either a `$type`, or if you want to generate a non-suffixed literal result token, a `$type` suffixed with 'u'
-///
-/// where `$type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`, `usize`, `isize`
-///
-/// where `$command` is one of
-/// - `$val + $val`
-/// - `$val - $val`
-/// - `$val * $val`
-/// - `$val / $val`
-/// - `$val % $val // Remainder`
-/// - `$val | $val // Binary Or`
-/// - `$val ^ $val // Binary Xor`
-/// - `$val & $val // Binary And`
-/// - `not $val`
-/// - `size_of $type`
+/// | Operator | Operation | Notes |
+/// | -------- | --------- | ----- |
+/// | `+`       | Addition              |  |
+/// | `-`       | Subtraction           |  |
+/// | `*`       | Multiplication        |  |
+/// | `/`       | Division              |  |
+/// | `%`       | Modulo/Remainder      |  |
+/// | `\|`      | Bitwise OR            |  |
+/// | `^`       | Bitwise XOR           |  |
+/// | `&`       | Bitwise AND           |  |
+/// | `>`       | Bitwise right shift   |  |
+/// | `<`       | Bitwise left shift    |  |
+/// | `not`     | Bitwise NOT           | Unary. |
+/// | `size_of` | Size of type in bytes | Unary. Uses [https://doc.rust-lang.org/std/mem/fn.size_of.html] |
 /// 
-/// where `$val` is one of
-/// -  `$bracketed_command`
-/// -  `$number`
-///
-/// where `$bracketed_command` is one of
-/// - `( $command )`
+/// ## Full grammar in Extended Backus-Naur format
+/// 
+///     <arithmetic_expression> ::= <output_specifier> <ws>+ <command>
+///     <output_specifier> ::= <type> | <unsuffixed_literal>
+///     <unsuffixed_literal> ::= <type>  "u"
+///     <type> ::= "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "f32" | "f64" | "usize" | "isize"
+///     <command> ::= <binary_expr> | <unary_expr>
+///     <unary_expr> ::= <unary_operator> <ws>+ <val>
+///     <unary_operator> ::= "not" | "size_of"
+///     <binary_expr> ::= <val> <ws>+ <binary_operator> <ws>+ <val>
+///     <binary_operator> ::= "+" | "-" | "*" | "/" | "%" | "|" | "^" | "&" | ">" | "<"
+///     <val> ::= <ws>* (<sub_expr> | <number>) <ws>*
+///     <sub_expr> ::= "(" <command> ")"
+///     <number> ::= <integer> <fraction>? <exponent>? ("_"? <type>)?
+///     <fraction> ::= "." <digit>+
+///     <integer> ::= "-"? (<digit> | <one_to_nine> ("_"? <digit>)+)
+///     <digit> ::= "0" | <one_to_nine>
+///     <one_to_nine> ::= [1-9]
+///     <exponent> ::= ("e" | "E") ("+" | "-")? <digit>+
+///     <ws> ::= " "
+/// 
+/// Current implementation leans on the [`syn`](https://docs.rs/syn/latest/syn/index.html) literal parsing tooling,
+/// and may be subject to change.
 /// 
 /// # Examples
 /// 
-/// ```ignore
-/// let x = $(arithmetic u64 1 + 1 + 1);
-/// assert_eq!(x, 3);
+/// ```rust,ignore
+/// let x = $(arithmetic u64 1 + 2 + 3);
+/// assert_eq!(x, 6);
 /// ```
 pub fn arithmeticHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
