@@ -126,6 +126,19 @@ fn arithmetic_test1() {
 }
 
 #[test]
+fn arithmetic_number_parsing_test1() {
+  do_with_in!{
+    sigil: $
+    do
+    assert_eq!($(arithmetic u64 1 + 2 + 3), 6u64);
+    assert_eq!($(arithmetic f64 1 + 2 + 3), 6f64);
+    assert_eq!($(arithmetic f64 1. + 2. + 3.), 6f64);
+    assert_eq!($(arithmetic f64 1.1 + 2.2 + 3.3), 6.6f64);
+    assert_eq!($(arithmetic i64 (0 - 1) + 2 + 3), 4i64);
+  }
+}
+
+#[test]
 fn arithmetic_sizes_test() {
   do_with_in!{
     sigil: $
