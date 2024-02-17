@@ -135,6 +135,19 @@ fn arithmetic_number_parsing_test1() {
     assert_eq!($(arithmetic f64 1. + 2. + 3.), 6f64);
     assert_eq!($(arithmetic f64 1.1 + 2.2 + 3.3), 6.6f64);
     assert_eq!($(arithmetic i64 (0 - 1) + 2 + 3), 4i64);
+    //let f = $(arithmetic u64 -1 + 2 + 3);
+    //assert_eq!(f, 4u64);
+    // -> shoould get a compiler error: Tried to negate an unsigned number of type u64
+    assert_eq!($(arithmetic i64 -1 + 2 + 3), 4i64);
+    assert_eq!($(arithmetic f64 -1 + 2 + 3), 4f64);
+    let f = $(arithmetic f64 (-1.0) + (-2.1) + 3.2);
+    assert_eq!(f, (-1.0) + (-2.1) + 3.2);
+    let g = $(arithmetic f64 (-1.0) + -2.1 + 3.2);
+    assert_eq!(g, (-1.0) + -2.1 + 3.2);
+    let h = $(arithmetic f64 -1.0 + -2.1 + 3.2);
+    assert_eq!(h, -1.0 + -2.1 + 3.2);
+    //let h = $(arithmetic f64 -(-1.0 + -2.1 + 3.2));
+    //assert_eq!(h, -(-1.0 + -2.1 + 3.2));
   }
 }
 

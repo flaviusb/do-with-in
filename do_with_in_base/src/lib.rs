@@ -1493,7 +1493,17 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
               Err(y) => {
                 match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
                   Ok(x)  => match x.base10_parse::<N>() {
-                    Ok(x)  => x,
+                    Ok(x)  => if negation { match x.neg() {
+                        Some(x) => {
+                          negation = false;
+                          x
+                        },
+                        None    => {
+                          let x_typename = N::name();
+                          let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      } } else { x },
                     Err(y) => {
                       let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
                       return Err(syn::parse::Error::new_spanned(token, msg));
@@ -1569,16 +1579,40 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
               },
             }
           },
-          Some(op) => {
+          Some(ref op) => {
             let right = match token.clone() {
+              TokenTree2::Punct(punct) if (punct.spacing() == proc_macro2::Spacing::Alone) && (punct.as_char() == '-') => {
+                negation = !negation;
+                continue
+              },
               TokenTree2::Literal(lit) => {
                 match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
                   Ok(x) => match x.base10_parse::<N>() {
-                    Ok(x)  => x,
+                    Ok(x)  => if negation { match x.neg() {
+                        Some(x) => {
+                          negation = false;
+                          x
+                        },
+                        None    => {
+                          let x_typename = N::name();
+                          let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      } } else { x },
                     Err(y) => {
                       match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
                         Ok(x)  => match x.base10_parse::<N>() {
-                          Ok(x)  => x,
+                          Ok(x)  => if negation { match x.neg() {
+                            Some(x) => {
+                              negation = false;
+                              x
+                            },
+                            None    => {
+                              let x_typename = N::name();
+                              let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                              return Err(syn::parse::Error::new_spanned(token, msg));
+                            },
+                          } } else { x },
                           Err(y) => {
                             let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
                             return Err(syn::parse::Error::new_spanned(token, msg));
@@ -1594,7 +1628,17 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
                   Err(y) => {
                     match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
                       Ok(x)  => match x.base10_parse::<N>() {
-                        Ok(x)  => x,
+                        Ok(x)  => if negation { match x.neg() {
+                          Some(x) => {
+                            negation = false;
+                            x
+                          },
+                          None    => {
+                            let x_typename = N::name();
+                            let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                            return Err(syn::parse::Error::new_spanned(token, msg));
+                          },
+                        } } else { x },
                         Err(y) => {
                           let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
                           return Err(syn::parse::Error::new_spanned(token, msg));
