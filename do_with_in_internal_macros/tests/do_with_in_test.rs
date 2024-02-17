@@ -151,6 +151,7 @@ fn arithmetic_number_parsing_test1() {
     assert_eq!($(arithmetic u64 1_000 + 2_000 + 3_000_000), 3_003_000u64);
     assert_eq!($(arithmetic f64 1_000.000_001 + 2_000.000_001 + 3_000_000.000_002), 3_003_000.000_004f64);
     assert_eq!($(arithmetic u64 1_000u64 + 2_000u64 + 3_000_000u64), 3_003_000u64);
+    assert_eq!($(arithmetic u64 1_000_u64 + 2_000_u64 + 3_000_000_u64), 3_003_000_u64);
   }
 }
 
