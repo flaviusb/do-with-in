@@ -156,6 +156,10 @@ fn arithmetic_number_parsing_test1() {
     assert_eq!(i, 321000f64);
     let j = $(arithmetic f64 1e3 + 2e4 + 3e5);
     assert_eq!(j, 321000f64);
+    let k = $(arithmetic f64 1e+3 + 2e+4 + 3e+5);
+    assert_eq!(k, 321000f64);
+    let l = $(arithmetic f64 1e-3 + 2e+4 + 3e-5);
+    assert_eq!(l, 20000.00103f64);
   }
 }
 
