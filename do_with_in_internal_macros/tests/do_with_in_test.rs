@@ -160,7 +160,8 @@ fn arithmetic_number_parsing_test1() {
     assert_eq!(k, 321000f64);
     let l = $(arithmetic f64 1e-3 + 2e+4 + 3e-5);
     assert_eq!(l, 20000.00103f64);
-    let m = $(arithmetic u8 0b0000_0001 + 0b1000_0000);
+    $(var m = {$(arithmetic u8 0b0000_0001 + 0b1000_0000)})
+    let m = $m;
     assert_eq!(m, 0b1000_0001u8);
     let n = $(arithmetic u8 0b1010_0101 | 0b1111_0000);
     assert_eq!(n, 0b1111_0101u8);
