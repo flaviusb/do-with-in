@@ -1375,22 +1375,109 @@ can_shift!(isize);
 cannot_shift!(f32);
 cannot_shift!(f64);
 
-fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize + MaybeShiftable + std::fmt::Display>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
+trait MaybeNegable: Sized {
+  fn neg(self) -> Option<Self>;
+  const negable: bool;
+  fn name() -> &'static str;
+}
+
+macro_rules! can_neg {
+  ($it: ty, $name: ident) => {
+    impl MaybeNegable for $it {
+      const negable: bool = true;
+      fn name() -> &'static str {
+        $name
+      }
+      fn neg(self) -> Option<Self> {
+        Some(<$it>::default() - self)
+      }
+    }
+  }
+}
+
+macro_rules! cannot_neg {
+  ($it: ty, $name: ident) => {
+    impl MaybeNegable for $it {
+      const negable: bool = false;
+      fn name() -> &'static str {
+        $name
+      }
+      fn neg(self) -> Option<Self> {
+        None
+      }
+    }
+  }
+}
+
+const name_u8: &str = "u8";
+const name_i8: &str = "i8";
+const name_u16: &str = "u16";
+const name_i16: &str = "i16";
+const name_u32: &str = "u32";
+const name_i32: &str = "i32";
+const name_u64: &str = "u64";
+const name_i64: &str = "i64";
+const name_usize: &str = "usize";
+const name_isize: &str = "isize";
+const name_f32: &str = "f32";
+const name_f64: &str = "f64";
+
+cannot_neg!(u8, name_u8);
+can_neg!(i8, name_i8);
+cannot_neg!(u16, name_u16);
+can_neg!(i16, name_i16);
+cannot_neg!(u32, name_u32);
+can_neg!(i32, name_i32);
+cannot_neg!(u64, name_u64);
+can_neg!(i64, name_i64);
+cannot_neg!(usize, name_usize);
+can_neg!(isize, name_isize);
+can_neg!(f32, name_f32);
+can_neg!(f64, name_f64);
+
+
+
+fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std::ops::Add<Output=N> + std::ops::Div<Output=N> + std::ops::Mul<Output=N> + std::ops::Sub<Output=N> + std::ops::Rem<Output=N> + std::cmp::PartialOrd + std::cmp::PartialEq + HoistAsFromUsize + MaybeShiftable + MaybeNegable + std::fmt::Display>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<N> where <N as std::str::FromStr>::Err: std::fmt::Display {
   let mut left: ArithmeticLeft<N> = ArithmeticLeft::None;
   let mut operator: Option<Operator> = None;
+  let mut negation: bool = false;
   for token in t.clone().into_iter() {
     match left {
       ArithmeticLeft::None | ArithmeticLeft::Not => {
         let not = (left == ArithmeticLeft::Not);
         left = match token.clone() {
+          TokenTree2::Punct(punct) if (punct.spacing() == proc_macro2::Spacing::Alone) && (punct.as_char() == '-') => {
+            negation = !negation;
+            left
+          },
           TokenTree2::Literal(lit) => {
             ArithmeticLeft::Num(match syn::parse_str::<syn::LitInt>(&lit.to_string()) {
               Ok(x) => match x.base10_parse::<N>() {
-                Ok(x)  => x,
+                Ok(x)  => if negation { match x.neg() {
+                        Some(x) => {
+                          negation = false;
+                          x
+                        },
+                        None    => {
+                          let x_typename = N::name();
+                          let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      } } else { x },
                 Err(y) => {
                   match syn::parse_str::<syn::LitFloat>(&lit.to_string()) {
                     Ok(x)  => match x.base10_parse::<N>() {
-                      Ok(x)  => x,
+                      Ok(x)  => if negation { match x.neg() {
+                        Some(x) => {
+                          negation = false;
+                          x
+                        },
+                        None    => {
+                          let x_typename = N::name();
+                          let msg = format!("Tried to negate an unsigned number of type {}", x_typename);
+                          return Err(syn::parse::Error::new_spanned(token, msg));
+                        },
+                      } } else { x },
                       Err(y) => {
                         let msg = format!("Expected a number inside an arithmetic handler, got {}", lit);
                         return Err(syn::parse::Error::new_spanned(token, msg));
