@@ -1751,13 +1751,19 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 ///     <binary_operator> ::= "+" | "-" | "*" | "/" | "%" | "|" | "^" | "&" | ">" | "<"
 ///     <val> ::= <ws>* (<sub_expr> | <number>) <ws>*
 ///     <sub_expr> ::= "(" <command> ")"
-///     <number> ::= <integer> <fraction>? <exponent>? ("_"? <type>)?
+///     <number> ::= (<integer> | <float>) ("_"? <type>)?
+///     <float> ::= <dec_integer> <fraction>? <exponent>?
 ///     <fraction> ::= "." <digit>+
-///     <integer> ::= "-"? (<digit> | <one_to_nine> ("_"? <digit>)+)
+///     <exponent> ::= ("e" | "E") ("+" | "-")? <digit>+
+///     <integer> ::= <dec_integer> | <hex_integer> | <bin_integer>
+///     <dec_integer> ::= "-"? (<digit> | <one_to_nine> ("_"? <digit>)+)
+///     <hex_integer> ::= "0" ("x" | "X") ("_"? <hex_digit>)+
+///     <hex_digit> ::= <digit> | [a-f] | [A-F]
+///     <bin_integer> ::= "0" ("b" | "B") ("_"? <bin_digit>)+
+///     <bin_digit> ::= "0" | "1"
 ///     <digit> ::= "0" | <one_to_nine>
 ///     <one_to_nine> ::= [1-9]
-///     <exponent> ::= ("e" | "E") ("+" | "-")? <digit>+
-///     <ws> ::= " "
+///     <ws> ::= ? Rust-accepted whitespace tokens ?
 /// 
 /// Current implementation leans on the [`syn`](https://docs.rs/syn/latest/syn/index.html) literal parsing tooling,
 /// and may be subject to change.
