@@ -1567,7 +1567,7 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
                     operator = Some(Operator::Or);
                   },
                   it   => {
-                    let msg = format!("Expected operator such as +, *, -, /, %, >>, or <<, got {}", it);
+                    let msg = format!("Expected operator such as +, *, -, /, %, >, or <, got {}", it);
                     return Err(syn::parse::Error::new_spanned(token, msg));
                   },
                 }
@@ -1733,8 +1733,8 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 /// | `\|`      | Bitwise OR            |  |
 /// | `^`       | Bitwise XOR           |  |
 /// | `&`       | Bitwise AND           |  |
-/// | `>`       | Bitwise right shift   |  |
-/// | `<`       | Bitwise left shift    |  |
+/// | `>`       | Bitwise right shift   | Note single `>` rather than more conventional `>>` |
+/// | `<`       | Bitwise left shift    | Note single `<` rather than more conventional `<<` |
 /// | `not`     | Bitwise NOT           | Unary. |
 /// | `size_of` | Size of type in bytes | Unary. Uses [https://doc.rust-lang.org/std/mem/fn.size_of.html] |
 /// 
