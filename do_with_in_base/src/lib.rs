@@ -1720,6 +1720,10 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 /// Because of a lack of type inference, you have to specify your desired return type at the start of any use of this handler.
 /// By default this will be a suffix-annotated literal (e.g. `5i8`, `1_i32`); append a `u` to the type name to return an unsuffixed literal.
 /// See [Rust by Example](https://doc.rust-lang.org/rust-by-example/primitives.html) for further reference.
+/// 
+/// Take care to ensure that the literal values you use are within the bounds of the specified return type:
+/// don't use negative numbers in an unsigned context; and 
+/// don't use values too large for the specified type (e.g. `1000i8`)
 ///
 /// ## Supported Operators
 /// 
@@ -1738,12 +1742,21 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 /// | `not`     | Bitwise NOT           | Unary. |
 /// | `size_of` | Size of type in bytes | Unary. Uses [https://doc.rust-lang.org/std/mem/fn.size_of.html] |
 /// 
+/// Bitwise operators are only supported for integer types, not floats.
+/// 
 /// ## Full grammar in Extended Backus-Naur format
+/// 
+/// The following grammar represents a tradeoff between legibility and strict correctness.
+/// Specifically, its production rules are not limited to type-correct expressions.
 /// 
 ///     <arithmetic_expression> ::= <output_specifier> <ws>+ <command>
 ///     <output_specifier> ::= <type> | <unsuffixed_literal>
 ///     <unsuffixed_literal> ::= <type>  "u"
-///     <type> ::= "u8" | "i8" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "f32" | "f64" | "usize" | "isize"
+///     <type> ::= <integer_type> | <float_type>
+///     <integer_type> ::= <signed_integer_type> | <unsigned_integer_type>
+///     <signed_integer_type> ::= "i8" | "i16" | "i32" | "i64" | "isize"
+///     <unsigned_integer_type> ::= "u8" | "u16" | "u32" | "u64" | "usize"
+///     <float_type> ::= "f32" | "f64"
 ///     <command> ::= <binary_expr> | <unary_expr>
 ///     <unary_expr> ::= <unary_operator> <ws>+ <val>
 ///     <unary_operator> ::= "not" | "size_of"
@@ -1751,22 +1764,20 @@ fn arithmeticInternal<T: StartMarker + Clone, N: Copy + std::str::FromStr + std:
 ///     <binary_operator> ::= "+" | "-" | "*" | "/" | "%" | "|" | "^" | "&" | ">" | "<"
 ///     <val> ::= <ws>* (<sub_expr> | <number>) <ws>*
 ///     <sub_expr> ::= "(" <command> ")"
-///     <number> ::= (<integer> | <float>) ("_"? <type>)?
-///     <float> ::= <dec_integer> <fraction>? <exponent>?
+///     <number> ::= (<signed_integer> | <unsigned_integer> | <float>)
+///     <float> ::= <signed_integer> <fraction>? <exponent>? ("_"? <float_type>)?
 ///     <fraction> ::= "." <digit>+
-///     <exponent> ::= ("e" | "E") ("+" | "-")? <digit>+
-///     <integer> ::= <dec_integer> | <hex_integer> | <bin_integer>
-///     <dec_integer> ::= "-"? (<digit> | <one_to_nine> ("_"? <digit>)+)
+///     <signed_integer> ::= "-"? <dec_integer_unsigned> ("_"? <signed_integer_type>)?
+///     <unsigned_integer> ::= <dec_integer_unsigned> | <hex_integer> | <bin_integer> ("_"? <unsigned_integer_type>)?
+///     <dec_integer_unsigned> ::= (<digit> | <one_to_nine> ("_"? <digit>)+)
 ///     <hex_integer> ::= "0" ("x" | "X") ("_"? <hex_digit>)+
 ///     <hex_digit> ::= <digit> | [a-f] | [A-F]
 ///     <bin_integer> ::= "0" ("b" | "B") ("_"? <bin_digit>)+
 ///     <bin_digit> ::= "0" | "1"
 ///     <digit> ::= "0" | <one_to_nine>
 ///     <one_to_nine> ::= [1-9]
+///     <exponent> ::= ("e" | "E") ("+" | "-")? <digit>+
 ///     <ws> ::= ? Rust-accepted whitespace tokens ?
-/// 
-/// Current implementation leans on the [`syn`](https://docs.rs/syn/latest/syn/index.html) literal parsing tooling,
-/// and may be subject to change.
 /// 
 /// # Examples
 /// 
