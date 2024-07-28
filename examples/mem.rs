@@ -3,8 +3,75 @@ extern crate do_with_in;
 
 use do_with_in::*;
 
+do_with_in!{
+  sigil: $ do
+
+  trait Fetch<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
+    fn fetch(&self, ip: usize) -> [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS];
+  }
+  pub struct Mem<MEM_STORE_TYPE, const M: usize> {
+    mem: [MEM_STORE_TYPE; M],
+  }
+  $(mk foreach
+    $(var A = { $1 })
+    $(var B = { $2 })
+    $(var C = { $3 })
+    $(var D = { [{$1 $2}] })
+    $(if { $(logic $A < $B) } { $(array each $C $D) $(var x = { $(arithmetic u64u $A + 1) $B $C }) $(array each foreach [ { $x } ]) } { }))
+
+  $(mk mkFetch
+      $(var
+          MEM_STORE_TYPE            = { $1 }
+          MEM_STORE_TYPE_SIZE       = { $2 }
+          MEM_STORE_CHUNKS          = { $3 }
+          MEM_RETURN_TYPE           = { $4 }
+          MEM_RETURN_TYPE_SIZE      = { $5 }
+          MEM_RETURN_CHUNKS         = { $6 }
+          //MEM_SIMULATING_TYPE       = { $7  }, ← needs to not be here, as it could be an impossible type like u4 or u300
+          MEM_SIMULATING_TYPE_SIZE  = { $7 }
+          MEM_SIMULATING_CHUNKS     = { $8 }
+          fetch_wrapper             = { $9 })
+      impl Fetch<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_RETURN_TYPE, $MEM_RETURN_TYPE_SIZE, $MEM_RETURN_CHUNKS, $MEM_SIMULATING_TYPE_SIZE, $MEM_SIMULATING_CHUNKS> for Mem<$MEM_STORE_TYPE, $MEM_STORE_CHUNKS> {
+        fn fetch(&self, ip: usize) -> [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS] { //[$MEM_RETURN_TYPE; $MEM_RETURN_CHUNKS] {
+          
+          let safe_ip: usize = ((ip * $MEM_SIMULATING_TYPE_SIZE) % ($MEM_STORE_TYPE_SIZE * $MEM_STORE_CHUNKS)) / $MEM_SIMULATING_TYPE_SIZE;
+          $(mk bit1 // $1 is current output chunk number, $2 is the final output chunk number
+                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at UNDERLYING_MEM_SIZE
+                   0,
+            )
+          $(mk bit2 // $1 is current output chunk number, $2 is the final output chunk number
+                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at UNDERLYING_MEM_SIZE
+                    // Each cell has to check for overflow
+                   0,
+            )
+          //if (((safe_ip as u64) + $MEM_SIMULATION_CHUNKS) * $MEM_SIMULATING_TYPE_SIZE) < ($MEM_STORE_TYPE_SIZE * $MEM_STORE_CHUNKS) {
+            [  $(var x = {{0 $MEM_STORE_CHUNKS bit1}}) $(array each foreach [ $x ]) ]
+          //} else {
+          //  [  $(var x = {{0 $MEM_STORE_CHUNKS bit2}}) $(array each foreach [ $x ]) ]
+          //}
+        }
+      }
+      pub fn $fetch_wrapper (it: &Mem<$MEM_STORE_TYPE, $MEM_STORE_CHUNKS>, ip: usize) -> [$MEM_RETURN_TYPE; $MEM_RETURN_CHUNKS] {
+        Fetch::<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_RETURN_TYPE, $MEM_RETURN_TYPE_SIZE, $MEM_RETURN_CHUNKS, $MEM_SIMULATING_TYPE_SIZE, $MEM_SIMULATING_CHUNKS>::fetch(&it, ip)
+      }
+    )
+  $(mkFetch usize 64 256 u8 8 1 4 1 fetch_4_1)
+  $(mkFetch usize 64 256 u8 8 1 4 2 fetch_4_2)
+  $(mkFetch usize 64 256 u8 8 2 4 3 fetch_4_3)
+
+}
+
+pub fn main() {
+  let mut m: Mem<usize, 256> = Mem { mem: [0usize; 256], };
+  m.mem[0] = 3;
+  m.mem[1] = 999;
+  m.mem[2] = (1 << 63) - 1;
+  m.mem[3] = (1 << 63) - 1;
+  println!("ip = {}, fetching {}: {:?}", 0, 1, fetch_4_1(&m, 0));
+}
 
 
+/*
 trait Fetch<const MEM_STORE_SIZE: usize, const N: usize, const WORDSIZE: usize, const OUT: usize, OUT_CHUNKS> {
   type MEM_BLOCK;
   const MEM_SIZE: usize;
@@ -61,22 +128,67 @@ do_with_in!{
         const MEM_SIZE: usize = $mem_store_capacity;
         fn fetch(&self, ip: usize) -> [$mem_return_type; $OUT] {
           // We have mem_store, mem_return, and mem_simulating as three binary container types
-          // We currently hardcode mem_return as u8, so |mem_return| = ((size_of u8) * 8)
+          // |mem_return| = ((size_of $mem_return_type) * 8)
           // ip and len ($N) are in terms of mem_simulating
           // $OUT is in terms of mem_return eg $(arithmetic usizeu (($N * $WORDSIZE) / ((size_of u8) * 8)) + $bump)
           // There are two lots of 5 possibilites
           // 1) |store| = |sim|,  |store| % |sim| = 0,  |sim| % |store| = 0,  |sim| < |store|,  |store| < |sim|
           // 2) |sim| = |return|, |sim| % |return| = 0, |return| % |sim| = 0, |return| < |sim|, |sim| < |return|
           //
-          // $(bit ...)  should deal with 1
-          // $(part ...) should deal with 2
+          // $(bit ...)  should deal with 2
+          // $(part ...) should deal with 1
           //
           // We also have to handle wrapping around when ((ip + N) * WORDSIZE) > (MEM_SIZE * MEM_BLOCK)
           // We start at start_big shifted by start_small
+          //
+          // We have start_store, start_sim, and start_return
+          // And num_store, num_sim, and num_return
+          // And bump_store, bump_sim, and bump_return
+          //
+          // get_store_from_sim n
+          // for 0 block_end get_sim_from_return
+          //
+          // ret_ip → list of sim_ip's → list of lists of store_ip's + shifts and masks and ands
+          // 
+          // $(mk get_store_from_sim // $1 is the pointer in 'sim' terms
+          //   $(if { $(logic $mem_store = $mem_simulate) }
+          //     {
+          //       self.mem[ip + $1]
+          //     }
+          //     {
+          //     })
+          // )
+          // $(mk get_sim_from_return // $1 is the 'return' pointer
+          //   $(if { $(logic $mem_return = $mem_simulate) }
+          //     {
+          //       $(array each get_store_from_sim [ {($1)} ]),
+          //     }
+          //     {
+          //     }
+          //   )
+          // )
+          // let out: [u8; $OUT] = [ $(var x = {{0 $OUT get_sim_from_return}}) $(array each foreach [ $x ]) ];
           $(mk part
             // start, base
+            // $1 = 
             )
-          $(mk bit ((self.mem[((ip + $1) * $mem_simulate) / std::mem::size_of::<Self::MEM_BLOCK>()] << (((ip + $1) * $mem_simulate) % std::mem::size_of::<Self::MEM_BLOCK>())) & (0b11111111)) as u8,)
+          $(mk bit
+            // $1 = current
+            // $2 = end (should correspond to $OUT) - the number of cells to generate
+            // ip = base pointer
+            $(if {
+              $(logic $mem_simulate = $mem_return)
+            } {
+              // get part ip + $1, no shifts
+            } {
+              $(if {
+                $(logic $(arithmetic u64u $mem_simulate % $mem_store) = 0)
+              } {
+              } {
+              })
+                     ((self.mem[((ip + $1) * $mem_simulate) / std::mem::size_of::<Self::MEM_BLOCK>()] << (((ip + $1) * $mem_simulate) % std::mem::size_of::<Self::MEM_BLOCK>())) & (0b11111111)) as u8
+            }
+            ,)
           let out: [u8; $OUT] = [ $(var x = {{0 $OUT bit}}) $(array each foreach [ $x ]) ];
           out
         }
@@ -90,6 +202,8 @@ do_with_in!{
   $(mk mem_3_4 Fetch::<4096, 3, 4, 2, u8>::fetch(& $1, $2))
   $(mkFetch 4 12 4096 usize u8)
   $(mk mem_4_12 Fetch::<4096, 4, 12, 6, u8>::fetch(& $1, $2))
+  $(mkFetch 1 64 4096 usize usize)
+  $(mk mem_usize_usize Fetch::<4096, 1, 64, 1, usize>::fetch(& $1, $2))
 
   const MEMLEN: usize = 2usize.pow(12);
   fn main() {
@@ -144,4 +258,4 @@ do_with_in!{
 }
 
 
-
+*/
