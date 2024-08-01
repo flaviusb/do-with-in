@@ -2,6 +2,7 @@
 extern crate do_with_in;
 
 use do_with_in::*;
+use std::cmp;
 
 do_with_in!{
   sigil: $ do
@@ -35,11 +36,28 @@ do_with_in!{
           
           let safe_ip: usize = ((ip * $MEM_SIMULATING_TYPE_SIZE) % ($MEM_STORE_TYPE_SIZE * $MEM_STORE_CHUNKS)) / $MEM_SIMULATING_TYPE_SIZE;
           $(mk bit1 // $1 is current output chunk number, $2 is the final output chunk number
-                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at UNDERLYING_MEM_SIZE
-                    // To work out which chunk the first bit is in, we do ((ip + $1) * $MEM_SIMULATING_TYPE_SIZE / $MEM_STORE_TYPE_SIZE) as usize
-                    // To work out how far through the first chunk the first bit is, we do ((ip + $1) * $MEM_SIMULATING_TYPE_SIZE % $MEM_STORE_TYPE_SIZE)
-                    // To work out how many chunks it occupies, we do ((((ip + $1) * $MEM_SIMULATING_TYPE_SIZE / $MEM_STORE_TYPE_SIZE) + (($MEM_SIMULATING_TYPE_SIZE - 1) / $MEM_STORE_TYPE_SIZE)) as usize) - (((ip + $1) * $MEM_SIMULATING_TYPE_SIZE / $MEM_STORE_TYPE_SIZE) as usize)
-                   ((self.mem[((ip + $1) * $MEM_SIMULATING_TYPE_SIZE) / $MEM_STORE_TYPE_SIZE]) >> (((ip + $1) * $MEM_SIMULATING_TYPE_SIZE) % $MEM_STORE_TYPE_SIZE)) as $MEM_RETURN_TYPE,
+                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at (MEM_STORE_TYPE_SIZE * MEM_STORE_CHUNKS)
+                  {
+                    let very_first_bit = (ip * $MEM_SIMULATING_TYPE_SIZE);
+                    let total_bits = $MEM_SIMULATING_TYPE_SIZE * $MEM_SIMULATING_CHUNKS;
+                    let bits_already_eaten = ($1 * $MEM_RETURN_TYPE_SIZE);
+                    let first_bit = (very_first_bit + bits_already_eaten);
+                    let bits_left_this_mouthful = cmp::min(total_bits - bits_already_eaten, $MEM_RETURN_TYPE_SIZE);
+                    let base: usize = first_bit / $MEM_STORE_TYPE_SIZE as usize;
+                    let num: usize = (((first_bit + bits_left_this_mouthful - 1) / $MEM_STORE_TYPE_SIZE) as usize) - base;
+                    let start_offset = first_bit % $MEM_STORE_TYPE_SIZE;
+                    //println!("For ip: {} and $1: {} and base: {} and num: {}", ip, $1, base, num);
+                    let mut out: $MEM_RETURN_TYPE = 0;
+                    out |= ((self.mem[base] >> start_offset) & ((1 << bits_left_this_mouthful) - 1)) as $MEM_RETURN_TYPE;
+                    let mut i = 1;
+                    while i <= num {
+                      let mask = ((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE)) - 1) as $MEM_RETURN_TYPE);
+                      //println!("For start_bits: {}, end bits: {}, bits: {:#b}", start_bits, end_bits, mask);
+                      out |= (self.mem[base + i] << (start_offset + ((i - 1) * $MEM_STORE_TYPE_SIZE))) as $MEM_RETURN_TYPE & mask;
+                      i+=1;
+                    }
+                    out
+                  },
             )
           $(mk bit2 // $1 is current output chunk number, $2 is the final output chunk number
                     // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at UNDERLYING_MEM_SIZE
