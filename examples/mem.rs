@@ -38,7 +38,7 @@ do_with_in!{
           $(mk bit1 // $1 is current output chunk number, $2 is the final output chunk number
                     // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at (MEM_STORE_TYPE_SIZE * MEM_STORE_CHUNKS)
                   {
-                    let very_first_bit = (ip * $MEM_SIMULATING_TYPE_SIZE);
+                    let very_first_bit = (safe_ip * $MEM_SIMULATING_TYPE_SIZE);
                     let total_bits = $MEM_SIMULATING_TYPE_SIZE * $MEM_SIMULATING_CHUNKS;
                     let bits_already_eaten = ($1 * $MEM_RETURN_TYPE_SIZE);
                     let first_bit = (very_first_bit + bits_already_eaten);
