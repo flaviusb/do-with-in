@@ -60,9 +60,29 @@ do_with_in!{
                   },
             )
           $(mk bit2 // $1 is current output chunk number, $2 is the final output chunk number
-                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at UNDERLYING_MEM_SIZE
+                    // ip is based on MEM_SIMULATING_TYPE_SIZE, and goes out to MEM_SIMULATING_CHUNKS, wrapping around at (MEM_STORE_TYPE_SIZE * MEM_STORE_CHUNKS) bits
                     // Each cell has to check for overflow
-                   0,
+                  {
+                    let very_first_bit = (safe_ip * $MEM_SIMULATING_TYPE_SIZE);
+                    let total_bits = $MEM_SIMULATING_TYPE_SIZE * $MEM_SIMULATING_CHUNKS;
+                    let bits_already_eaten = ($1 * $MEM_RETURN_TYPE_SIZE);
+                    let first_bit = (very_first_bit + bits_already_eaten);
+                    let bits_left_this_mouthful = cmp::min(total_bits - bits_already_eaten, $MEM_RETURN_TYPE_SIZE);
+                    let base: usize = first_bit / $MEM_STORE_TYPE_SIZE as usize;
+                    let num: usize = (((first_bit + bits_left_this_mouthful - 1) / $MEM_STORE_TYPE_SIZE) as usize) - base;
+                    let start_offset = first_bit % $MEM_STORE_TYPE_SIZE;
+                    //println!("For ip: {} and $1: {} and base: {} and num: {}", ip, $1, base, num);
+                    let mut out: $MEM_RETURN_TYPE = 0;
+                    out |= ((self.mem[base % $MEM_STORE_CHUNKS] >> start_offset) & ((1 << bits_left_this_mouthful) - 1)) as $MEM_RETURN_TYPE;
+                    let mut i = 1;
+                    while i <= num {
+                      let mask = ((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE)) - 1) as $MEM_RETURN_TYPE);
+                      //println!("For start_bits: {}, end bits: {}, bits: {:#b}", start_bits, end_bits, mask);
+                      out |= (self.mem[(base + i) % $MEM_STORE_CHUNKS] << (start_offset + ((i - 1) * $MEM_STORE_TYPE_SIZE))) as $MEM_RETURN_TYPE & mask;
+                      i+=1;
+                    }
+                    out
+                  },
             )
           if (((safe_ip as u64) + $MEM_SIMULATING_CHUNKS) * $MEM_SIMULATING_TYPE_SIZE) < ($MEM_STORE_TYPE_SIZE * $MEM_STORE_CHUNKS) {
             [  $(var x = {{0 $MEM_RETURN_CHUNKS bit1}}) $(array each foreach [ $x ]) ]
