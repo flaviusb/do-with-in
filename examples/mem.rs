@@ -136,6 +136,18 @@ pub fn main() {
   println!("ip = {}, fetching {}{}: {:?}{}", 42, 3, "u9", fetch_9_3(&m, 42), "u8");
 }
 
+#[test]
+fn testFetch() {
+  let mut m: Mem<usize, 256> = Mem { mem: [0usize; 256], };
+  m.mem[0] = 0b1111_0010_1111_0000_1000_0100_0010_0001;
+  assert_eq!(fetch_4_1(&m, 0), [0b0001]);
+  assert_eq!(fetch_4_2(&m, 0), [0b0010_0001]);
+  assert_eq!(fetch_4_3(&m, 0), [0b0010_0001, 0b0100]);
+  assert_eq!(fetch_9_1(&m, 0), [0b0010_0001, 0b0]);
+  assert_eq!(fetch_9_2(&m, 0), [0b0010_0001, 0b1000_0100, 0b00]);
+  assert_eq!(fetch_9_3(&m, 0), [0b0010_0001, 0b1000_0100, 0b1111_0000, 0b010]);
+  assert_eq!(fetch_9_1(&m, 1), [0b01000_010, 0b0]);
+}
 
 /*
   $(mk case
