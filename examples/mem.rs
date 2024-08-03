@@ -51,9 +51,9 @@ do_with_in!{
                     out |= ((self.mem[base] >> start_offset) & ((1 << bits_left_this_mouthful) - 1)) as $MEM_RETURN_TYPE;
                     let mut i = 1;
                     while i <= num {
-                      let mask = ((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE)) - 1) as $MEM_RETURN_TYPE);
+                      let mask = (((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE))) - 1) as $MEM_RETURN_TYPE);
                       //println!("For start_bits: {}, end bits: {}, bits: {:#b}", start_bits, end_bits, mask);
-                      out |= (self.mem[base + i] << (start_offset + ((i - 1) * $MEM_STORE_TYPE_SIZE))) as $MEM_RETURN_TYPE & mask;
+                      out |= (self.mem[base + i] << ($MEM_STORE_TYPE_SIZE - (start_offset + ((i - 1) * $MEM_RETURN_TYPE_SIZE)))) as $MEM_RETURN_TYPE & mask;
                       i+=1;
                     }
                     out
@@ -76,9 +76,9 @@ do_with_in!{
                     out |= ((self.mem[base % $MEM_STORE_CHUNKS] >> start_offset) & ((1 << bits_left_this_mouthful) - 1)) as $MEM_RETURN_TYPE;
                     let mut i = 1;
                     while i <= num {
-                      let mask = ((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE)) - 1) as $MEM_RETURN_TYPE);
+                      let mask = (((1 << (bits_left_this_mouthful - ((i - 1) * $MEM_STORE_TYPE_SIZE))) - 1) as $MEM_RETURN_TYPE);
                       //println!("For start_bits: {}, end bits: {}, bits: {:#b}", start_bits, end_bits, mask);
-                      out |= (self.mem[(base + i) % $MEM_STORE_CHUNKS] << (start_offset + ((i - 1) * $MEM_STORE_TYPE_SIZE))) as $MEM_RETURN_TYPE & mask;
+                      out |= (self.mem[(base + i) % $MEM_STORE_CHUNKS] << ($MEM_STORE_TYPE_SIZE - (start_offset + ((i - 1) * $MEM_RETURN_TYPE_SIZE)))) as $MEM_RETURN_TYPE & mask;
                       i+=1;
                     }
                     out
@@ -101,6 +101,11 @@ do_with_in!{
   $(mkFetch usize 64 256 u8 8 2 9 1 fetch_9_1)
   $(mkFetch usize 64 256 u8 8 3 9 2 fetch_9_2)
   $(mkFetch usize 64 256 u8 8 4 9 3 fetch_9_3)
+
+  $(mkFetch u32 32 512 u16 16 1 3  1 fetch_u32_into_u16_3_1)
+  $(mkFetch u32 32 512 u64 64 1 3  1 fetch_u32_into_u64_3_1)
+  $(mkFetch u32 32 512 u16 16 2 30 1 fetch_u32_into_u16_30_1)
+  $(mkFetch u32 32 512 u64 64 1 30 1 fetch_u32_into_u64_30_1)
 
 }
 
@@ -137,7 +142,7 @@ pub fn main() {
 }
 
 #[test]
-fn testFetch() {
+fn testFetch1() {
   let mut m: Mem<usize, 256> = Mem { mem: [0usize; 256], };
   m.mem[0] = 0b1111_0010_1111_0000_1000_0100_0010_0001;
   assert_eq!(fetch_4_1(&m, 0), [0b0001]);
@@ -147,6 +152,21 @@ fn testFetch() {
   assert_eq!(fetch_9_2(&m, 0), [0b0010_0001, 0b1000_0100, 0b00]);
   assert_eq!(fetch_9_3(&m, 0), [0b0010_0001, 0b1000_0100, 0b1111_0000, 0b010]);
   assert_eq!(fetch_9_1(&m, 1), [0b01000_010, 0b0]);
+}
+
+#[test]
+fn testFetch2() {
+  let mut m: Mem<u32, 512> = Mem { mem: [0u32; 512], };
+  m.mem[0] = 0b1111_0010_1111_0000_1000_0100_0010_0001;
+  m.mem[1] = 0b0000_1000_1100_0111_1011_1101_1110_1111;
+  assert_eq!(fetch_u32_into_u16_3_1(&m, 0), [0b001]);
+  assert_eq!(fetch_u32_into_u64_3_1(&m, 0), [0b001]);
+  assert_eq!(fetch_u32_into_u16_30_1(&m, 0), [0b1000_0100_0010_0001, 0b11_0010_1111_0000]);
+  assert_eq!(fetch_u32_into_u64_30_1(&m, 0), [0b11_0010_1111_0000_1000_0100_0010_0001]);
+  assert_eq!(fetch_u32_into_u16_3_1(&m, 1), [0b100]);
+  assert_eq!(fetch_u32_into_u64_3_1(&m, 1), [0b100]);
+  assert_eq!(fetch_u32_into_u16_30_1(&m, 1), [0b11_1101_1110_1111_11, 0b1000_1100_0111_10]);
+  assert_eq!(fetch_u32_into_u64_30_1(&m, 1), [0b1000_1100_0111_1011_1101_1110_1111_11]);
 }
 
 /*
