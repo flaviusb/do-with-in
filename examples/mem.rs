@@ -14,8 +14,8 @@ do_with_in!{
   trait Fetch<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
     fn fetch(&self, ip: usize) -> [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS];
   }
-  trait Write<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
-    fn write(&mut self, ip: usize, data: [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS]);
+  trait Write<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_PASS_TYPE, const MEM_PASS_TYPE_SIZE: usize, const MEM_PASS_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
+    fn write(&mut self, ip: usize, data: [MEM_PASS_TYPE; MEM_PASS_CHUNKS]);
   }
   pub struct Mem<MEM_STORE_TYPE, const M: usize> {
     mem: [MEM_STORE_TYPE; M],
@@ -149,6 +149,40 @@ do_with_in!{
   )
   $(mkExtract u8 8 1 u8 8 1 3 extract_3)
 
+  $(mk mkWrite
+      $(var
+          MEM_STORE_TYPE            = { $1 }
+          MEM_STORE_TYPE_SIZE       = { $2 }
+          MEM_STORE_CHUNKS          = { $3 }
+          MEM_PASS_TYPE           = { $4 }
+          MEM_PASS_TYPE_SIZE      = { $5 }
+          MEM_PASS_CHUNKS         = { $6 }
+          MEM_SIMULATING_TYPE_SIZE  = { $7 }
+          MEM_SIMULATING_CHUNKS     = { $8 }
+          write_wrapper             = { $9 })
+      impl Write<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_PASS_TYPE, $MEM_PASS_TYPE_SIZE, $MEM_PASS_CHUNKS, $MEM_SIMULATING_TYPE_SIZE, $MEM_SIMULATING_CHUNKS> for Mem<$MEM_STORE_TYPE, $MEM_STORE_CHUNKS> {
+        fn write(&mut self, ip: usize, data: [$MEM_PASS_TYPE; $MEM_PASS_CHUNKS]) {
+          let start = ip * $MEM_SIMULATING_TYPE_SIZE;
+          let mut through: usize = 0;
+          while through < $MEM_SIMULATING_TYPE_SIZE * $MEM_SIMULATING_CHUNKS {
+            let pass_chunk_start_at = (through % $MEM_PASS_TYPE_SIZE);
+            let current_pass_chunk_capacity_remaining = $MEM_PASS_TYPE_SIZE - pass_chunk_start_at;
+            let store_start_at = ((start + through) % $MEM_STORE_TYPE_SIZE);
+            let current_store_chunk_bits_left = $MEM_STORE_TYPE_SIZE - store_start_at;
+            let how_much = cmp::min(cmp::min(current_pass_chunk_capacity_remaining, current_store_chunk_bits_left), ($MEM_SIMULATING_TYPE_SIZE * $MEM_SIMULATING_CHUNKS) - through);
+            let how_much_mask: $MEM_STORE_TYPE = if how_much == $MEM_STORE_TYPE_SIZE { $MEM_STORE_TYPE::MAX } else { (1 << how_much) - 1 };
+            self.mem[((start + through) / $MEM_STORE_TYPE_SIZE)] &= !(how_much_mask << store_start_at);
+            self.mem[((start + through) / $MEM_STORE_TYPE_SIZE)] |= ((((data[through / $MEM_PASS_TYPE_SIZE] >> pass_chunk_start_at) as $MEM_STORE_TYPE) & how_much_mask) << store_start_at) as $MEM_STORE_TYPE;
+            through += how_much;
+          }
+        }
+      }
+      pub fn $write_wrapper (it: &mut Mem<$MEM_STORE_TYPE, $MEM_STORE_CHUNKS>, ip: usize, data: [$MEM_PASS_TYPE; $MEM_PASS_CHUNKS]) {
+        Write::<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_PASS_TYPE, $MEM_PASS_TYPE_SIZE, $MEM_PASS_CHUNKS, $MEM_SIMULATING_TYPE_SIZE, $MEM_SIMULATING_CHUNKS>::write(it, ip, data)
+      }
+    )
+
+  $(mkWrite usize 64 256 u8 8 1 4 1 write_usize_from_u8_4_1)
 }
 
 pub fn main() {
@@ -221,6 +255,19 @@ fn testExtract1() {
   assert_eq!(extract_3(&fetch_4_2(&m, 0), 3), [0b100]);
   assert_eq!(fetch_4_2(&m, 7), [0b1111_1111]);
   assert_eq!(extract_3(&fetch_4_2(&m, 7), 3), [0b111]);
+}
+
+#[test]
+fn testWrite1() {
+  let mut m: Mem<usize, 256> = Mem { mem: [0usize; 256], };
+  m.mem[0] = 0b0000_1000_1100_0111_1011_1101_1110_1111_1111_0010_1111_0000_1000_0100_0010_0001;
+  assert_eq!(fetch_4_2(&m, 0), [0b0010_0001]);
+  write_usize_from_u8_4_1(&mut m, 0, [0b1100]);
+  assert_eq!(fetch_4_2(&m, 0), [0b0010_1100]);
+  assert_eq!(fetch_4_2(&m, 1), [0b0100_0010]);
+  write_usize_from_u8_4_1(&mut m, 2, [0b1101]);
+  assert_eq!(fetch_4_2(&m, 0), [0b0010_1100]);
+  assert_eq!(fetch_4_2(&m, 1), [0b1101_0010]);
 }
 
 /*
