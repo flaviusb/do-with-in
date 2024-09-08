@@ -59,7 +59,7 @@ fn main() {
 }
 ```
 
-There are examples of the use of `do_with_in!` for use site metaprogramming in the `examples/` directory; an example showing off generation of compile time length safe access functions is here: `examples/mem.rs`. The various handlers are documented on the docs dot rs site; the tests at `do_with_in_internal_macros/tests/do_with_in_test.rs` are a lot of simple cases exercising the functionality of the `do_with_in!` macro.
+There are examples of the use of `do_with_in!` for use site metaprogramming in the `examples/` directory; an example showing off generation of compile time length safe access functions is at `examples/mem.rs`. The various handlers are documented on the docs dot rs site; the tests at `do_with_in_internal_macros/tests/do_with_in_test.rs` are a lot of simple cases exercising the functionality of the `do_with_in!` macro.
 
 ## API
 
