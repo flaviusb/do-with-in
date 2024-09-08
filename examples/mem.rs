@@ -127,11 +127,8 @@ do_with_in!{
         extract_wrapper           = { $8 })
     impl Extract<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_RETURN_TYPE, $MEM_RETURN_TYPE_SIZE, $MEM_RETURN_CHUNKS, $BITS> for [$MEM_STORE_TYPE; $MEM_STORE_CHUNKS] {
       fn extract(&self, start: usize) -> [$MEM_RETURN_TYPE; $MEM_RETURN_CHUNKS] {
-        let base: usize = (start / $MEM_STORE_TYPE_SIZE) % $MEM_STORE_CHUNKS;
         let first_bit: usize = start % $MEM_STORE_TYPE_SIZE;
         let mut out: [$MEM_STORE_TYPE; $MEM_STORE_CHUNKS] = [0; $MEM_STORE_CHUNKS];
-        //
-        let mut current_bit = first_bit;
         let mut through: usize = 0;
         while through < $BITS {
           let return_chunk_start_at = (through % $MEM_RETURN_TYPE_SIZE);
