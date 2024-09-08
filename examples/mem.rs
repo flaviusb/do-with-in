@@ -7,8 +7,15 @@ use std::cmp;
 do_with_in!{
   sigil: $ do
 
+  trait Extract<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const BITS: usize> {
+    fn extract(&self, start: usize) -> [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS];
+  }
+
   trait Fetch<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
     fn fetch(&self, ip: usize) -> [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS];
+  }
+  trait Write<MEM_STORE_TYPE, const MEM_STORE_TYPE_SIZE: usize, const MEM_STORE_CHUNKS: usize, MEM_RETURN_TYPE, const MEM_RETURN_TYPE_SIZE: usize, const MEM_RETURN_CHUNKS: usize, const MEM_SIMULATING_TYPE_SIZE: usize, const MEM_SIMULATING_CHUNKS: usize> {
+    fn write(&mut self, ip: usize, data: [MEM_RETURN_TYPE; MEM_RETURN_CHUNKS]);
   }
   pub struct Mem<MEM_STORE_TYPE, const M: usize> {
     mem: [MEM_STORE_TYPE; M],
@@ -107,6 +114,44 @@ do_with_in!{
   $(mkFetch u32 32 512 u16 16 2 30 1 fetch_u32_into_u16_30_1)
   $(mkFetch u32 32 512 u64 64 1 30 1 fetch_u32_into_u64_30_1)
 
+
+  $(mk mkExtract
+    $(var
+        MEM_STORE_TYPE            = { $1 }
+        MEM_STORE_TYPE_SIZE       = { $2 }
+        MEM_STORE_CHUNKS          = { $3 }
+        MEM_RETURN_TYPE           = { $4 }
+        MEM_RETURN_TYPE_SIZE      = { $5 }
+        MEM_RETURN_CHUNKS         = { $6 }
+        BITS                      = { $7 }
+        extract_wrapper           = { $8 })
+    impl Extract<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_RETURN_TYPE, $MEM_RETURN_TYPE_SIZE, $MEM_RETURN_CHUNKS, $BITS> for [$MEM_STORE_TYPE; $MEM_STORE_CHUNKS] {
+      fn extract(&self, start: usize) -> [$MEM_RETURN_TYPE; $MEM_RETURN_CHUNKS] {
+        let base: usize = (start / $MEM_STORE_TYPE_SIZE) % $MEM_STORE_CHUNKS;
+        let first_bit: usize = start % $MEM_STORE_TYPE_SIZE;
+        let mut out: [$MEM_STORE_TYPE; $MEM_STORE_CHUNKS] = [0; $MEM_STORE_CHUNKS];
+        //
+        let mut current_bit = first_bit;
+        let mut through: usize = 0;
+        while through < $BITS {
+          let return_chunk_start_at = (through % $MEM_RETURN_TYPE_SIZE);
+          let current_return_chunk_capacity_remaining = $MEM_RETURN_TYPE_SIZE - return_chunk_start_at;
+          let store_start_at = ((start + through) % $MEM_STORE_TYPE_SIZE);
+          let current_store_chunk_bits_left = $MEM_STORE_TYPE_SIZE - store_start_at;
+          let how_much = cmp::min(cmp::min(current_return_chunk_capacity_remaining, current_store_chunk_bits_left), $BITS - through);
+          let how_much_mask: $MEM_STORE_TYPE = if how_much == $MEM_STORE_TYPE_SIZE { $MEM_STORE_TYPE::MAX } else { (1 << how_much) - 1 };
+          out[through / $MEM_RETURN_TYPE_SIZE] |= ((self[((start + through) / $MEM_STORE_TYPE_SIZE)] >> store_start_at) & how_much_mask) << return_chunk_start_at;
+          through += how_much;
+        }
+        out
+      }
+    }
+    pub fn $extract_wrapper (it: &[$MEM_STORE_TYPE; $MEM_STORE_CHUNKS], start: usize) -> [$MEM_RETURN_TYPE; $MEM_RETURN_CHUNKS] {
+      Extract::<$MEM_STORE_TYPE, $MEM_STORE_TYPE_SIZE, $MEM_STORE_CHUNKS, $MEM_RETURN_TYPE, $MEM_RETURN_TYPE_SIZE, $MEM_RETURN_CHUNKS, $BITS>::extract(it, start)
+    }
+  )
+  $(mkExtract u8 8 1 u8 8 1 3 extract_3)
+
 }
 
 pub fn main() {
@@ -167,6 +212,18 @@ fn testFetch2() {
   assert_eq!(fetch_u32_into_u64_3_1(&m, 1), [0b100]);
   assert_eq!(fetch_u32_into_u16_30_1(&m, 1), [0b11_1101_1110_1111_11, 0b1000_1100_0111_10]);
   assert_eq!(fetch_u32_into_u64_30_1(&m, 1), [0b1000_1100_0111_1011_1101_1110_1111_11]);
+}
+
+#[test]
+fn testExtract1() {
+  let mut m: Mem<usize, 256> = Mem { mem: [0usize; 256], };
+  m.mem[0] = 0b0000_1000_1100_0111_1011_1101_1110_1111_1111_0010_1111_0000_1000_0100_0010_0001;
+  assert_eq!(fetch_4_2(&m, 0), [0b0010_0001]);
+  assert_eq!(extract_3(&fetch_4_2(&m, 0), 0), [0b001]);
+  assert_eq!(extract_3(&fetch_4_2(&m, 0), 1), [0b000]);
+  assert_eq!(extract_3(&fetch_4_2(&m, 0), 3), [0b100]);
+  assert_eq!(fetch_4_2(&m, 7), [0b1111_1111]);
+  assert_eq!(extract_3(&fetch_4_2(&m, 7), 3), [0b111]);
 }
 
 /*
