@@ -79,7 +79,7 @@ In the metaprogramming section, variables are identifiers with a sigil prepended
 
 If you are using `do_with_in!` directly, the environment will be prepopulated with a set of default handlers to make it a 'batteries included' experience. See [`fn.genericDefaultHandlers`][] for the list of documented default handlers.
 
-[`fn.genericDefaultHandlers`]: https://docs.rs/do-with-in/0.1.5/do_with_in/fn.genericDefaultHandlers.html
+[`fn.genericDefaultHandlers`]: https://docs.rs/do-with-in/0.1.6/do_with_in/fn.genericDefaultHandlers.html
 
 ### `let` & `var`
 
