@@ -2889,6 +2889,13 @@ pub fn handleMkHandlerRunner<T: 'static + StartMarker + Clone>(c: Configuration<
     return Err((v, quote_spanned!{sp=> #msg }));
   }
 }
+
+/// A simple way to define new handlers at the use site.
+/// 
+/// *Syntax*: `%(mk <ident> <block>)`
+/// 
+/// Once defined, it can be called like any other handler: `%(<ident> {<arg1>}... )`.
+/// On calling, its positional numbered parameters can be referenced via `%1`, `%2` etc.
 pub fn mkHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut variables = v.clone();
   let mut it = t.clone().into_iter();
