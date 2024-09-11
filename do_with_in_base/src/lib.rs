@@ -902,9 +902,12 @@ impl<T: StartMarker + Clone> Configuration<T> {
   }
 }
 
+/// Holds the assignable state for a `do_with_in!` block.
 #[derive(Clone)]
 pub struct Variables<'a, T: StartMarker + Clone> {
+  /// Handler functions available at this point in processing.
   pub handlers:    Handlers<'a, T>,
+  /// Values assigned through [letHandler] or [varHandler].
   pub variables:   HashMap<String, (TokenStream2, bool)>,
 }
 
