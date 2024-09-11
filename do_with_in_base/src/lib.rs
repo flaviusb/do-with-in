@@ -69,10 +69,14 @@ impl Default for Sigil {
   }
 }
 
+/// Escape sequence style set in [Configuration].
 #[derive(Debug,Copy,Clone,PartialEq,Eq)]
 pub enum Escaping {
+  /// No escape sequence is allowed.
   None,
+  /// Escape sequence is a backslash followed by a sigil e.g. `\%` or `\#`.
   Backslash,
+  /// Escape sequence is two of the assigned sigils in a row e.g. `$$` or `~~`.
   Double,
 }
 
