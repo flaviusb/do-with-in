@@ -1017,7 +1017,9 @@ impl<'a, T: 'static + StartMarker + Clone> Default for Variables<'a, T> {
   }
 }
 
+/// Function that processes a token stream and return a [Result] holding the currently assigned variables & the remaining token stream.
 pub type Handler<T: StartMarker + Clone> = dyn Fn(Configuration<T>, Variables<T>, Option<TokenStream2>, TokenStream2) -> StageResult<T>;
+/// A [HashMap] of [Handler] functions, keyed by a [String] token. Used in [Variable].
 pub type Handlers<'a, T: StartMarker + Clone> = HashMap<String, (Box<&'a Handler<T>>, Option<TokenStream2>)>;
 
 /// Conditionally execute one of two branches, depending on the result of a test expression.
