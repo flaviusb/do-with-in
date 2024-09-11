@@ -1111,6 +1111,7 @@ fn tokenstreamToBool(stream: TokenStream2) -> std::result::Result<bool, String> 
   }
 }
 
+#[doc(hidden)]
 pub fn concatHandlerInner<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2) -> syn::parse::Result<String> {
   let mut accumulator: Vec<String> = Vec::new();
   for token in t.into_iter() {
@@ -1217,6 +1218,7 @@ pub fn string_to_identHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Va
   return Ok((v, output));
 }
 
+#[doc(hidden)]
 pub fn forHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data:Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let mut output = TokenStream2::new();
   let mut variables = v.clone();
@@ -2797,6 +2799,7 @@ pub fn internalFnRunner<T: StartMarker + Clone>(c: Configuration<T>, v: Variable
     },
   }
 }
+#[doc(hidden)]
 pub fn fnHandler<T: 'static + StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, data: Option<TokenStream2>, t: TokenStream2) -> StageResult<T> {
   let sp = t.clone().span();
   let mut variables = v.clone();
@@ -2918,6 +2921,8 @@ enum LetState {
   Name(String),
   NamePostEquals(String),
 }
+
+#[doc(hidden)]
 pub fn assignmentInternalHandler<T: StartMarker + Clone>(c: Configuration<T>, v: Variables<T>, t: TokenStream2, interp_first: bool, interp_after: bool) -> StageResult<T> {
   let mut variables = v.clone();
   let mut state: LetState = LetState::Nothing;
