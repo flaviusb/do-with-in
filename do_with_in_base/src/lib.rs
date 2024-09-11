@@ -96,11 +96,16 @@ impl Default for Escaping {
   }
 }
 
+/// Holds configurable state for `do_with_in` processing.
 #[derive(Debug,Clone)]
 pub struct Configuration<Start: StartMarker> where Start: Clone {
+  /// Whether front matter is taken into account. Default is `true` when using `do_with_in!` proc_macro.
   pub allow_prelude: bool,
+  /// Control character to use within `do_with_in!` block. Defaults to `$`. Can be set in front matter.
   pub sigil: Sigil,
+  /// Pattern used as escape sequence. Can be set in front matter.
   pub escaping_style: Escaping,
+  /// Allows use of relative path when calling `import`. Can be set in front matter.
   pub file: Option<String>,
   pub rest: Option<TokenStream2>,
   _do: PhantomData<Start>,
