@@ -25,6 +25,7 @@ use std::fmt::format;
 
 use bimap::BiMap;
 
+/// User-configurable options for sigil control character, one of `$`, `%`, `#`, or `~`.
 #[derive(Debug,Copy,Clone,PartialEq,Eq)]
 pub enum Sigil {
   Dollar,
