@@ -71,9 +71,13 @@ impl Default for Sigil {
 }
 
 /// Escape sequence style set in [Configuration].
+/// 
+/// Sigils that precede a name or number, or a group are evaluated as variables and handlers respectively. To treat these sigils
+/// instead as unchanged parts of a token an escape sequence can be used. Sigils that do not directly precede a name, number, or
+/// group are always left unchanged.
 #[derive(Debug,Copy,Clone,PartialEq,Eq)]
 pub enum Escaping {
-  /// No escape sequence is allowed.
+  /// There are no escape sequences; sigils are always treated normally.
   None,
   /// Escape sequence is a backslash followed by a sigil e.g. `\%` or `\#`.
   Backslash,
